@@ -9,6 +9,8 @@
 /*   Produced by Andrew Hanushevsky for Stanford University under contract    */
 /*              DE-AC02-76-SFO0515 with the Department of Energy              */
 /******************************************************************************/
+
+#include <sys/socket.h>
   
 //         $Id$
 
@@ -44,8 +46,9 @@ static int getHostAddr(       char     *InetName,
 //               host name is specified (or specifiied as 0), the fully
 //               qualified name of this host is returned. The name is returned
 //               as an strdup'd string which must be released using free().
-//               Upon failure, zero is returned and the error text is placed
-//               in errtxt if an address is supplied.
+//               If errtxt is supplied, it is set to zero.
+//               Upon failure, strdup("127.0.0.1") is returned and the error
+//               text is placed in errtxt if an address is supplied.
 //
 static char *getHostName(char *InetName=0,
                          char **errtxt=0);
@@ -53,8 +56,10 @@ static char *getHostName(char *InetName=0,
 // getHostName() returns the primary name of the host associated with the IP
 //               address InetAddr. If a translation is successful, the address
 //               of an strdup'd null terminated name is returned (it must be
-//               released using free()). Otherwise, 0 id returned and the
-//               errnor text is placed in errtxt if an address is supplied.
+//               released using free()) and errtxt, of supplied, is set to 0.
+//               Upon failure, the ascii text version of the address is
+//               returned and the error text is placed in errtxt if an 
+//               address is supplied.
 //
 static char *getHostName(struct sockaddr &InetAddr,
                                 char    **errtxt=0);
@@ -84,6 +89,12 @@ static int getPort(const char  *servname,
                    const char  *servtype,
                          char **errtxt=0);
 
+// getPort() variant returns the port number associated with the specified
+//           file descriptor. If an error occurs, a negative errno is returned,
+//           and errtxt is set if supplied.
+//
+static int getPort(int fd, char **errtxt=0);
+
 // getProtoID() returns the protocol number associated with the protocol name
 //              passed as a parameter. No failures can occur since TCP is
 //              returned if the protocol cannot be found.
@@ -106,6 +117,12 @@ static int Host2Dest(char            *InetName,
 static int Host2IP(char         *InetName,
                    unsigned int *ipaddr=0);
 
+// IP2String() converts an IPV4 version of the address to ascii dot notation
+//             If port > 0 then the results is <ipaddr>:<port>. The return
+//             value is the number of characters placed in the buffer.
+//
+static int IP2String(unsigned int ipaddr, int port, char *buff, int blen);
+
 // IPAddr() returns the IPV4 version of the address in the address argument
 //
 static unsigned int IPAddr(struct sockaddr *InetAddr);
@@ -114,6 +131,11 @@ static unsigned int IPAddr(struct sockaddr *InetAddr);
 //              This test is used to discover IP address spoofing in UDP packets.
 //
 static int isLoopback(struct sockaddr &InetAddr);
+
+// isMatch() returns true if the HostName matches the host pattern HostPat.
+//           Patterns are formed as {[<pfx>][*][<sfx>] | <name>+}
+//
+static int isMatch(const char *HostNme, char *HostPat);
 
 // Peername() returns the strdupp'd string name (and optionally the address) of 
 //            the host associated with the socket passed as the first parameter. 

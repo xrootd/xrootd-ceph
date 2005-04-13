@@ -18,6 +18,7 @@ const char *XrdNetDNSCVSID = "$Id$";
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -65,21 +66,17 @@ int XrdNetDNS::getHostAddr(       char     *InetName,
 #ifndef HAS_NAMEINFO
     if (!isdigit((int)*InetName))
 #ifdef __sun
-       gethostbyname_r((const char *)InetName,
-                       &hent, hbuff, sizeof(hbuff),      &rc);
+       gethostbyname_r(InetName, &hent, hbuff, sizeof(hbuff), &rc);
 #else
-       gethostbyname_r((const char *)InetName,
-                       &hent, hbuff, sizeof(hbuff), &hp, &rc);
+       gethostbyname_r(InetName, &hent, hbuff, sizeof(hbuff), &hp, &rc);
 #endif
        else if ((int)(addr = inet_addr(InetName)) == -1)
                return (errtxt ? setET(errtxt, EINVAL) : 0);
 #ifdef __sun
-               else gethostbyaddr_r((const char *)&addr,sizeof(addr),
-                                    AF_INET, &hent,
+               else gethostbyaddr_r(&addr,sizeof(addr), AF_INET, &hent,
                                     hbuff, sizeof(hbuff),      &rc);
 #else
-               else gethostbyaddr_r((const char *)&addr,sizeof(addr),
-                                    AF_INET, &hent,
+               else gethostbyaddr_r(&addr,sizeof(addr), AF_INET, &hent,
                                     hbuff, sizeof(hbuff), &hp, &rc);
 #endif
     if (rc) return (errtxt ? setET(errtxt, rc) : 0);
@@ -99,7 +96,7 @@ int XrdNetDNS::getHostAddr(       char     *InetName,
 // Translate the name to an address list
 //
     if (isdigit((int)*InetName)) myhints.ai_flags |= AI_NUMERICHOST;
-    rc = getaddrinfo((const char *)InetName,0,(const addrinfo *)&myhints, &rp);
+    rc = getaddrinfo(InetName,0,(const addrinfo *)&myhints, &rp);
     if (rc || !(np = rp)) return (errtxt ? setETni(errtxt, rc) : 0);
 
 // Return all of the addresses. On some platforms (like linux) this function is
@@ -136,12 +133,12 @@ char *XrdNetDNS::getHostName(char *InetName, char **errtxt)
 //
    if (InetName) hp = InetName;
       else if (gethostname(myname, sizeof(myname))) 
-              {if (errtxt) setET(errtxt, errno); return (char *)0;}
+              {if (errtxt) setET(errtxt, errno); return strdup("127.0.0.1");}
               else hp = myname;
 
 // Get the address
 //
-   if (!getHostAddr(hp, InetAddr, errtxt)) return 0;
+   if (!getHostAddr(hp, InetAddr, errtxt)) return strdup("127.0.0.1");
 
 // Convert it to a fully qualified host name and return it
 //
@@ -156,7 +153,14 @@ char *XrdNetDNS::getHostName(struct sockaddr &InetAddr, char **errtxt)
 {
      char *result;
      if (getHostName(InetAddr, &result, 1, errtxt)) return result;
-     return(char *)0;
+
+    {char dnbuff[64];
+     unsigned int ipaddr;
+     struct sockaddr_in *ip = (sockaddr_in *)&InetAddr;
+     memcpy(&ipaddr, &ip->sin_addr, sizeof(ipaddr));
+     IP2String(ipaddr, -1, dnbuff, sizeof(dnbuff));
+     return strdup(dnbuff);
+    }
 }
 
 /******************************************************************************/
@@ -170,6 +174,10 @@ int XrdNetDNS::getHostName(struct sockaddr &InetAddr,
 {
    char mybuff[256];
    int i, rc;
+
+// Preset errtxt to zero
+//
+   if (errtxt) *errtxt = 0;
 
 // Some platforms have nameinfo but getnameinfo() is broken. If so, we revert
 // to using the gethostbyaddr().
@@ -194,6 +202,11 @@ int XrdNetDNS::getHostName(struct sockaddr &InetAddr,
 //
    if (maxipn < 1) return (errtxt ? setET(errtxt, EINVAL) : 0);
 
+// Check for unix family which is equl to localhost
+//
+  if (InetAddr.sa_family == AF_UNIX) 
+     {InetName[0] = strdup("localhost"); return 1;}
+
 #if !defined(HAS_NAMEINFO) || defined(__macos__)
 
 // Convert it to a host name
@@ -201,11 +214,11 @@ int XrdNetDNS::getHostName(struct sockaddr &InetAddr,
    rc = 0;
 #ifdef HAS_GETHBYXR
 #ifdef __sun
-   gethostbyaddr_r((const char *)&(ip->sin_addr), sizeof(struct in_addr),
+   gethostbyaddr_r(&(ip->sin_addr), sizeof(struct in_addr),
                    AF_INET, &hent, hbuff, sizeof(hbuff),      &rc);
    hp = &hent;
 #else
-   gethostbyaddr_r((const char *)&(ip->sin_addr), sizeof(struct in_addr),
+   gethostbyaddr_r(&(ip->sin_addr), sizeof(struct in_addr),
                    AF_INET, &hent, hbuff, sizeof(hbuff), &hp, &rc);
 #endif
 #else
@@ -251,7 +264,7 @@ int XrdNetDNS::getHostName(struct sockaddr &InetAddr,
 
 // Get the aliases for this name
 //
-    rc = getaddrinfo((const char *)mybuff,0,(const addrinfo *)&myhints, &rp);
+    rc = getaddrinfo(mybuff,0,(const addrinfo *)&myhints, &rp);
     if (rc || !(np = rp)) return (errtxt ? setETni(errtxt, rc) : 0);
 
 // Return all of the names
@@ -314,6 +327,24 @@ int XrdNetDNS::getPort(const char  *servname,
 }
  
 /******************************************************************************/
+
+int XrdNetDNS::getPort(int fd, char **errtxt)
+{
+   struct sockaddr InetAddr;
+   struct sockaddr_in *ip = (struct sockaddr_in *)&InetAddr;
+   socklen_t slen = (socklen_t)sizeof(InetAddr);
+   int rc;
+
+   if ((rc = getsockname(fd, &InetAddr, &slen)))
+      {rc = errno;
+       if (errtxt) setET(errtxt, errno);
+       return -rc;
+      }
+
+   return static_cast<int>(ntohs(ip->sin_port));
+}
+
+/******************************************************************************/
 /*                            g e t P r o t o I D                             */
 /******************************************************************************/
 
@@ -364,7 +395,7 @@ int XrdNetDNS::Host2Dest(char            *hostname,
 
 // Find the colon in the host name
 //
-   if (!(cp = index((const char *)hostname, (int)':'))) 
+   if (!(cp = index(hostname, (int)':')))
        {if (errtxt) *errtxt = (char *)"port not specified";
         return 0;
        }
@@ -377,7 +408,7 @@ int XrdNetDNS::Host2Dest(char            *hostname,
 
 // Insert port number in address
 //
-   if (!(port = atoi((const char *)cp+1)) || port > 0xffff)
+   if (!(port = atoi(cp+1)) || port > 0xffff)
       {if (errtxt) *errtxt = (char *)"invalid port number";
        *cp = ':'; 
        return 0;
@@ -416,6 +447,25 @@ unsigned int XrdNetDNS::IPAddr(struct sockaddr *InetAddr)
   {return (unsigned int)(((struct sockaddr_in *)InetAddr)->sin_addr.s_addr);}
 
 /******************************************************************************/
+/*                             I P 2 S t r i n g                              */
+/******************************************************************************/
+  
+int XrdNetDNS::IP2String(unsigned int ipaddr, int port, char *buff, int blen)
+{
+   struct in_addr in;
+   int sz;
+
+// Convert the address
+//
+   in.s_addr = ipaddr;
+   if (port <= 0)
+      sz = snprintf(buff,blen,"%s",   inet_ntoa((const struct in_addr)in));
+      else 
+      sz = snprintf(buff,blen,"%s:%d",inet_ntoa((const struct in_addr)in),port);
+   return (sz > blen ? blen : sz);
+}
+
+/******************************************************************************/
 /*                            i s L o o p b a c k                             */
 /******************************************************************************/
   
@@ -425,6 +475,43 @@ int XrdNetDNS::isLoopback(struct sockaddr &InetAddr)
    return ip->sin_addr.s_addr == 0x7f000001;
 }
 
+/******************************************************************************/
+/*                               i s M a t c h                                */
+/******************************************************************************/
+
+int XrdNetDNS::isMatch(const char *HostName, char *HostPat)
+{
+    struct sockaddr InetAddr[16];
+    char *mval;
+    int i, j, k, retc;
+
+    if (!strcmp(HostPat, HostName)) return 1;
+
+    if ((mval = index(HostPat, (int)'*')))
+       {*mval = '\0'; mval++; 
+        k = strlen(HostName); j = strlen(mval); i = strlen(HostPat);
+        if ((i+j) > k
+        || strncmp(HostName,      HostPat,i)
+        || strncmp((HostName+k-j),mval,j)) return 0;
+        return 1;
+       }
+
+    i = strlen(HostPat);
+    if (HostPat[i-1] != '+') i = 0;
+        else {HostPat[i-1] = '\0';
+              if (!(i = getHostAddr(HostPat, InetAddr, 16)))
+                  return 0;
+             }
+
+    while(i--)
+         {mval = getHostName(InetAddr[i]);
+          retc = !strcmp(mval,HostName) || !strcmp(mval,HostPat);
+          free(mval);
+          if (retc) return 1;
+         }
+    return 0;
+}
+  
 /******************************************************************************/
 /*                              P e e r n a m e                               */
 /******************************************************************************/

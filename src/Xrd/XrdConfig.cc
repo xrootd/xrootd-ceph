@@ -584,6 +584,11 @@ int XrdConfig::Setup(char *dfltp)
    if (myDomain) XrdNetTCP->setDomain((const char *)myDomain);
    ProtInfo.Port = PortTCP;
 
+// Setup envvar kludge for port number
+   static char pbuff[32];
+   sprintf(pbuff, "XRDPORT=%d", PortTCP);
+   putenv(pbuff);
+
 // Allocate the statistics object. This is akward since we only know part
 // of the current configuration. The object will figure this out later.
 //
