@@ -251,37 +251,49 @@ int XrdOfs::ConfigRedir(XrdOucError &Eroute)
 
 // For local or target redirection we need to know the port number
 //
-   if (Options & (XrdOfsREDIRLCL | XrdOfsREDIRTRG))
-      {i = 3;
-       while(i < 256 && getsockname(i,(struct sockaddr *)&name, &nlen) < 0) i++;
-       if (i >= 256)
+//PE   if (Options & (XrdOfsREDIRLCL | XrdOfsREDIRTRG))
+//PE      {i = 3;
+//PE       while(i < 256 && getsockname(i,(struct sockaddr *)&name, &nlen) < 0) i++;
+//PE       if (i >= 256)
+//PE          {Eroute.Emsg("Config", "Unable to determine server's port number.");
+//PE           return 1;
+//PE          }
+//PE       port = ntohs(name.sin_port);
+//PE       DEBUG("Dynamic port identification... port number=" <<port);
+//PE      } else port = -1;
+
+   if (Options & XrdOfsREDIRTRG)
+      {char *pp;
+       if (!(pp=getenv("XRDPORT")) || !(port=strtol(pp, (char **)NULL, 10)))
           {Eroute.Emsg("Config", "Unable to determine server's port number.");
            return 1;
           }
-       port = ntohs(name.sin_port);
-       DEBUG("Dynamic port identification... port number=" <<port);
-      } else port = -1;
-
-// Create a local finder, if need be
-       //
-   if (Options & XrdOfsREDIRLCL)
-      {myFinder = new XrdOdcFinderLCL(Eroute.logger(), port);
-       if (!myFinder->Configure(ConfigFN)) {delete myFinder; return 1;}
-
-       // We are either a participator or a redirector, decide which is which
-       //
-       if (myFinder->isRedirector()) Finder = (XrdOdcFinder *)myFinder;
-          else isprime = 0;
-       Reporter = myFinder;
-      }
-
-// Create a target finder
-//
-   if (Options & XrdOfsREDIRTRG)
-      {Balancer = new XrdOdcFinderTRG(Eroute.logger(), isprime, port);
+       Balancer = new XrdOdcFinderTRG(Eroute.logger(),
+                                     (Options & XrdOfsREDIRRMT), port);
        if (!Balancer->Configure(ConfigFN)) 
           {delete Balancer; Balancer = 0; return 1;}
       }
+
+// Create a local finder, if need be
+//
+// if (Options & XrdOfsREDIRLCL)
+//    {myFinder = new XrdOdcFinderLCL(Eroute.logger(), port);
+//     if (!myFinder->Configure(ConfigFN)) {delete myFinder; return 1;}
+//
+       // We are either a participator or a redirector, decide which is which
+       //
+//     if (myFinder->isRedirector()) Finder = (XrdOdcFinder *)myFinder;
+//        else isprime = 0;
+//     Reporter = myFinder;
+//    }
+
+// Create a target finder
+//
+// if (Options & XrdOfsREDIRTRG)
+//    {Balancer = new XrdOdcFinderTRG(Eroute.logger(), isprime, port);
+//     if (!Balancer->Configure(ConfigFN))
+//        {delete Balancer; Balancer = 0; return 1;}
+//    }
 
 // All done
 //
