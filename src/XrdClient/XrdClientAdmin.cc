@@ -16,7 +16,7 @@
 #include "XrdClient/XrdClientAdmin.hh"
 #include "XrdClient/XrdClientDebug.hh"
 #include "XrdClient/XrdClientUrlSet.hh"
-#include "XrdClient/XrdClientAdminConn.hh"
+#include "XrdClient/XrdClientConnAdmin.hh"
 #include "XrdClient/XrdClientEnv.hh"
 #include "XrdClient/XrdClientConnMgr.hh"
 
@@ -70,7 +70,7 @@ XrdClientAdmin::XrdClientAdmin(const char *url) {
 
    fInitialUrl = url;
 
-   fConnModule = (fgAdminConn) ? new XrdClientAdminConn()
+   fConnModule = (fgAdminConn) ? new XrdClientConnAdmin()
                                : new XrdClientConn();
 
    if (!fConnModule) {
