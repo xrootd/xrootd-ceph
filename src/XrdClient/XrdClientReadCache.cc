@@ -38,7 +38,7 @@ XrdClientReadCacheItem::~XrdClientReadCacheItem()
     // Destructor
 
     if (fData)
-	free(fData);
+       free(fData);
 }
 
 //
@@ -86,10 +86,10 @@ XrdClientReadCache::~XrdClientReadCache()
 
 
 //________________________________________________________________________
-void XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
+bool XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
 					long long end_offs)
 {
-    if (!buffer) return;
+    if (!buffer) return true;
     XrdClientReadCacheItem *itm;
 
     Info(XrdClientDebug::kHIDEBUG, "Cache",
@@ -131,11 +131,12 @@ void XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
 	    fItems.Insert(itm, pos);
 	    fTotalByteCount += itm->Size();
 	    fBytesSubmitted += itm->Size();
+            return true;
 	}
+        return false;
+    }
 
-
-    } // if
-
+    return false;
 
     //    PrintCache();
 }
@@ -149,7 +150,8 @@ void XrdClientReadCache::SubmitXMessage(XrdClientMessage *xmsg, long long begin_
 
     const void *buffer = xmsg->DonateData();
 
-    SubmitRawData(buffer, begin_offs, end_offs);
+    if (!SubmitRawData(buffer, begin_offs, end_offs))
+        free(const_cast<void *>(buffer));
 }
 
 

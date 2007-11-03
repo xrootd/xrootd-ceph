@@ -726,20 +726,22 @@ int XrdSecProtocolkrb5::exp_krbTkn(XrdSecCredentials *cred, XrdOucErrInfo *erp)
     if ((rc = krb5_cc_resolve(krb_context, ccfile, &cache)))
        return rc;
 
+    { XrdSysPrivGuard pGuard((uid_t)pw->pw_uid, (gid_t)pw->pw_gid);
 // Init cache
 //
-    if ((rc = krb5_cc_initialize(krb_context, cache,
-                                 Ticket->enc_part2->client)))
-       return rc;
+      if ((rc = krb5_cc_initialize(krb_context, cache,
+                                   Ticket->enc_part2->client)))
+         return rc;
 
 // Store credentials in cache
 //
-    if ((rc = krb5_cc_store_cred(krb_context, cache, *creds)))
-       return rc;
+      if ((rc = krb5_cc_store_cred(krb_context, cache, *creds)))
+         return rc;
 
 // Close cache
-    if ((rc = krb5_cc_close(krb_context, cache)))
-       return rc;
+      if ((rc = krb5_cc_close(krb_context, cache)))
+         return rc;
+    }
 
 // Change permission and ownership of the file
 //

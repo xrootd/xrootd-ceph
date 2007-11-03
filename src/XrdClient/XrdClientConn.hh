@@ -74,6 +74,8 @@ public:
 				       XrdClientAbsUnsolMsgHandler *unsolhandler);
     void                       Disconnect(bool ForcePhysicalDisc);
     virtual bool               GetAccessToSrv();
+    XReqErrorType              GoBackToRedirector();
+
     XrdOucString               GetClientHostDomain() { return fgClientHostDomain; }
 
 

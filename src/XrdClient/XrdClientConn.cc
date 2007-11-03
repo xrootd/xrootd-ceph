@@ -99,7 +99,8 @@ void ParseRedirHost(XrdOucString &host, XrdOucString &opaque, XrdOucString &toke
 }
 
 //_____________________________________________________________________________
-void ParseRedir(XrdClientMessage* xmsg, int &port, XrdOucString &host, XrdOucString &opaque, XrdOucString &token)
+void ParseRedir(XrdClientMessage* xmsg, int &port, XrdOucString &host,
+                XrdOucString &opaque, XrdOucString &token)
 {
     // Small utility function... we want to parse the content
     // of a redir response from the server.
@@ -1754,10 +1755,12 @@ XrdClientConn::HandleServerError(XReqErrorType &errorType, XrdClientMessage *xms
               newport = 0;
               // An explicit redir overwrites token and opaque info
               ParseRedir(xmsg, newport, newhost, fRedirOpaque, fRedirInternalToken);
+
               // Save it in fREQUrl
               fREQUrl = fUrl;
               fREQUrl.Host = newhost;
               fREQUrl.Port = newport;
+
               // Reset counter
               fGlobalRedirCnt = 0;
               return kSEHRReturnMsgToCaller;
@@ -1834,6 +1837,11 @@ XrdClientConn::HandleServerError(XReqErrorType &errorType, XrdClientMessage *xms
 
 	    // An explicit redir overwrites token and opaque info
 	    ParseRedir(xmsg, newport, newhost, fRedirOpaque, fRedirInternalToken);
+
+            // Last redirection
+            fREQUrl = fUrl;
+            fREQUrl.Host = newhost;
+            fREQUrl.Port = newport;
 
 	    // Clear the current session info. Rather simplicistic.
 	    //ClearSessionID();
@@ -1983,6 +1991,16 @@ XReqErrorType XrdClientConn::GoToAnotherServer(XrdClientUrlInfo newdest)
     fPrimaryStreamid = ConnectionManager->GetConnection(fLogConnID)->Streamid();
 
     return kOK;
+}
+
+//_____________________________________________________________________________
+XReqErrorType XrdClientConn::GoBackToRedirector() {
+  // This is a primitive used to force a client to consider again
+  // the root node as the default connection, even after requests that involve
+  // redirections. Used typically for stat and similar functions
+  Disconnect(false);
+  if (fGlobalRedirCnt) fGlobalRedirCnt--;
+  return GoToAnotherServer(*fLBSUrl);
 }
 
 //_____________________________________________________________________________
@@ -2276,7 +2294,7 @@ UnsolRespProcResult XrdClientConn::ProcessAsynResp(XrdClientMessage *unsolmsg) {
     fREQWaitRespData->resphdr.status = kXR_wait;
     fREQWaitRespData->resphdr.dlen = sizeof(kXR_int32);
 
-    kXR_int32 i = 1;
+    kXR_int32 i = htonl(1);
     memcpy(&fREQWaitRespData->respdata, &i, sizeof(i));
 
     fREQWaitResp->Signal();
@@ -2369,7 +2387,7 @@ UnsolRespProcResult XrdClientConn::ProcessAsynResp(XrdClientMessage *unsolmsg) {
     fREQWaitRespData->resphdr.status = kXR_wait;
     fREQWaitRespData->resphdr.dlen = sizeof(kXR_int32);
       
-    kXR_int32 i = 1;
+    kXR_int32 i = htonl(1);
     memcpy(&fREQWaitRespData->respdata, &i, sizeof(i));
 
     free(unsolmsg->DonateData());

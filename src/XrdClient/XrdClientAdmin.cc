@@ -926,11 +926,22 @@ bool XrdClientAdmin::Locate(kXR_char *path, XrdClientUrlInfo &eurl, bool fast)
 
    } else {
 
+      // Default
+      eurl.TakeUrl(XrdOucString((const char*)path));
+
       // Stat the file
       long id, flags, modtime;
       long long size;
-      if ((rc = Stat((const char *)path, id, size, flags, modtime)))
-         eurl = fConnModule->GetRedirUrl();
+      if ((rc = Stat((const char *)path, id, size, flags, modtime))) {
+         // Endpoint url
+         if (fConnModule->GetRedirUrl().Host.length() <= 0) {
+            eurl.Host = fConnModule->GetCurrentUrl().Host;
+            eurl.Port = fConnModule->GetCurrentUrl().Port;
+         } else {
+            eurl.Host = fConnModule->GetRedirUrl().Host;
+            eurl.Port = fConnModule->GetRedirUrl().Port;
+         }
+      }
    }
 
    // Done!
