@@ -127,7 +127,8 @@ void ParseRedir(XrdClientMessage* xmsg, int &port, XrdOucString &host,
 XrdClientConn::XrdClientConn(): fOpenError((XErrorCode)0), fUrl(""),
 				fLBSUrl(0), 
                                 fConnected(false), 
-				fMainReadCache(0),
+                                fGettingAccessToSrv(false),
+ 				fMainReadCache(0),
 				fREQWaitRespData(0),
 				fREQWaitTimeLimit(0),
 				fREQConnectWaitTimeLimit(0) {
@@ -1133,6 +1134,14 @@ bool XrdClientConn::GetAccessToSrv()
 
     XrdClientLogConnection *logconn = ConnectionManager->GetConnection(fLogConnID);
 
+    // This is to prevent recursion in this delicate phase
+    if (fGettingAccessToSrv) {
+      logconn->GetPhyConnection()->StartReader();
+      return true;
+    }
+
+    fGettingAccessToSrv = true;
+
     switch ((fServerType = DoHandShake(fLogConnID))) {
     case kSTError:
 	Info(XrdClientDebug::kNODEBUG,
@@ -1142,6 +1151,7 @@ bool XrdClientConn::GetAccessToSrv()
 
 	Disconnect(TRUE);
 
+        fGettingAccessToSrv = false;
 	return FALSE;
 
     case kSTNone: 
@@ -1151,6 +1161,7 @@ bool XrdClientConn::GetAccessToSrv()
 
 	Disconnect(TRUE);
 
+        fGettingAccessToSrv = false;
 	return FALSE;
 
     case kSTRootd: 
@@ -1175,6 +1186,7 @@ bool XrdClientConn::GetAccessToSrv()
 
 	    Disconnect(TRUE);
 
+            fGettingAccessToSrv = false;
 	    return FALSE;
 	}
 
@@ -1201,6 +1213,8 @@ bool XrdClientConn::GetAccessToSrv()
 	break;
     }
 
+    bool retval = false;
+
     // Execute a login if connected to a xrootd server
     if (fServerType != kSTRootd) {
 
@@ -1208,18 +1222,21 @@ bool XrdClientConn::GetAccessToSrv()
 	logconn->GetPhyConnection()->StartReader();
 
 	if (logconn->GetPhyConnection()->IsLogged() == kNo)
-	    return DoLogin();
+	    retval = DoLogin();
 	else {
 
 	    Info( XrdClientDebug::kHIDEBUG,
 		  "GetAccessToSrv", "Reusing physical connection to server [" <<
 		  fUrl.Host << ":" << fUrl.Port << "]).");
 
-	    return TRUE;
+	    retval = TRUE;
 	}
     }
     else
-	return TRUE;
+	retval = TRUE;
+
+    fGettingAccessToSrv = false;
+    return retval;
 }
 
 //_____________________________________________________________________________
@@ -1235,7 +1252,7 @@ ERemoteServerType XrdClientConn::DoHandShake(short int log) {
 
     XrdClientPhyConnection *phyconn = lcn->GetPhyConnection();
 
-    if (!phyconn) return kSTError;
+    if (!phyconn || !phyconn->IsValid()) return kSTError;
 
 
     {
@@ -2369,7 +2386,7 @@ UnsolRespProcResult XrdClientConn::ProcessAsynResp(XrdClientMessage *unsolmsg) {
     // Explicit redirection request
     if (rd && (strlen(rd->host) > 0)) {
       Info(XrdClientDebug::kUSERDEBUG,
-	   "ProcessUnsolicitedMsg", "Requested sync redir (via async response) to " << rd->host <<
+	   "ProcessAsyncResp", "Requested sync redir (via async response) to " << rd->host <<
 	   ":" << ntohl(rd->port));
 	
       SetRequestedDestHost(rd->host, ntohl(rd->port));
