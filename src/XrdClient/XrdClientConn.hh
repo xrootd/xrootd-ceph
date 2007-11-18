@@ -261,10 +261,8 @@ protected:
 private:
 
     static XrdOucString        fgClientHostDomain; // Save the client's domain name
-
-    bool                       fGettingAccessToSrv; // To avoid recursion in desperate situations
-
     bool                       fConnected;
+    bool                       fGettingAccessToSrv; // To avoid recursion in desperate situations
     time_t                     fGlobalRedirLastUpdateTimestamp; // Timestamp of last redirection
 
     int                        fLogConnID;        // Logical connection ID used
