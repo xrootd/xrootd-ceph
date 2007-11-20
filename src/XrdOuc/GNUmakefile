@@ -76,11 +76,15 @@ $(TARGETS): $(OBJECTS)
 	@echo Creating archive $(LIBRARY) 
 	$(ECHO)rm -f $(LIBRARY)
 	$(ECHO)if [ "$(TYPE)" = "SunOS" -a "$(CC)" = "CC" ]; then \
-	$(CC) -xar -o $(LIBRARY) $(OBJECTS); \
-	else \
-	ar -rc $(LIBRARY) $(OBJECTS); \
-	ranlib $(LIBRARY); \
-fi
+	          if [ "x$(SUNCACHE)" != "x" ]; then \
+	             $(CC) -xar -o $(LIBRARY) $(OBJDIR)$(SUNCACHE)/*/*.o; \
+		  else \
+	             $(CC) -xar -o $(LIBRARY) $(OBJECTS); \
+		  fi; \
+	       else \
+	          ar -rc $(LIBRARY) $(OBJECTS); \
+	          ranlib $(LIBRARY); \
+               fi
 
 $(OBJDIR)/XrdOuca2x.o: XrdOuca2x.cc XrdOuca2x.hh XrdSysError.hh
 	@echo Compiling XrdOuca2x.cc
