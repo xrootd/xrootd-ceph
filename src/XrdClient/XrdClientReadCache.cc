@@ -72,6 +72,7 @@ XrdClientReadCache::XrdClientReadCache() : fItems(16384)
     fBytesUsefulness = 0.0;
 
     fMaxCacheSize = EnvGetLong(NAME_READCACHESIZE);
+    fBlkRemPolicy = EnvGetLong(NAME_READCACHEBLKREMPOLICY);
 }
 
 //________________________________________________________________________
@@ -93,8 +94,6 @@ bool XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
     XrdClientReadCacheItem *itm;
 
 
-    fMaxCacheSize = EnvGetLong(NAME_READCACHESIZE);
-
     Info(XrdClientDebug::kHIDEBUG, "Cache",
 	 "Submitting " << begin_offs << "->" << end_offs << " to cache.");
 
@@ -107,7 +106,7 @@ bool XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
     // We remove all the blocks contained in the one we are going to put
     RemoveItems(begin_offs, end_offs);
 
-    if (MakeFreeSpace(end_offs - begin_offs)) {
+    if (MakeFreeSpace(end_offs - begin_offs + 1)) {
 
 
 
@@ -346,7 +345,8 @@ long XrdClientReadCache::GetDataIfPresent(const void *buffer,
 	    bytesgot += l;
 	    lasttakenbyte = begin_offs+bytesgot-1;
 
-	    fItems[it]->Touch(GetTimestampTick());
+	    if (fBlkRemPolicy != kRmBlk_FIFO)
+	      fItems[it]->Touch(GetTimestampTick());
 
 	    if (PerfCalc) {
 		fBytesHit += l;
@@ -468,6 +468,7 @@ void XrdClientReadCache::RemoveItems(long long begin_offs, long long end_offs)
     XrdSysMutexHelper mtx(fMutex);
 
     it = FindInsertionApprox(begin_offs);
+    if (it > 0) it--;
 
     // We remove all the blocks contained in the given interval
     while (it < fItems.GetSize()) {
@@ -598,6 +599,47 @@ void XrdClientReadCache::RemovePlaceholders() {
 
 }
 
+
+
+//________________________________________________________________________
+bool XrdClientReadCache::RemoveFirstItem()
+{
+    // Finds the first item (lower offset) and removes it
+    // We don't remove placeholders
+
+    int it, lruit;
+    XrdClientReadCacheItem *item;
+
+    XrdSysMutexHelper mtx(fMutex);
+
+    lruit = -1;
+
+	// Kill the first not placeholder if we have too many blks
+	lruit = -1;
+	for (it = 0; it < fItems.GetSize(); it++) {
+	    // We don't remove placeholders
+	    if (!fItems[it]->IsPlaceholder()) {
+		lruit = it;
+		break;
+	    }
+	}
+
+
+    if (lruit >= 0)
+	item = fItems[lruit];
+    else return false;
+
+    fTotalByteCount -= item->Size();
+    delete item;
+    fItems.Erase(lruit);
+
+
+    return true;
+}
+
+
+
+
 //________________________________________________________________________
 bool XrdClientReadCache::RemoveLRUItem()
 {
@@ -606,7 +648,7 @@ bool XrdClientReadCache::RemoveLRUItem()
 
     int it, lruit;
     long long minticks = -1;
-    XrdClientReadCacheItem *item;
+    XrdClientReadCacheItem *item = 0;
 
     XrdSysMutexHelper mtx(fMutex);
 
@@ -640,13 +682,30 @@ bool XrdClientReadCache::RemoveLRUItem()
 	item = fItems[lruit];
     else return false;
 
-    if (minticks >= 0) {
-	fTotalByteCount -= item->Size();
-	delete item;
-	fItems.Erase(lruit);
+    if (item) {
+      fTotalByteCount -= item->Size();
+      delete item;
+      fItems.Erase(lruit);
     }
 
-    return false;
+    return true;
+}
+
+//________________________________________________________________________
+bool XrdClientReadCache::RemoveItem() {
+
+    switch (fBlkRemPolicy) {
+
+    case kRmBlk_LRU:
+    case kRmBlk_FIFO:
+      return RemoveLRUItem();
+
+    case kRmBlk_LeastOffs:
+      return RemoveFirstItem();
+
+    }
+
+    return RemoveLRUItem();
 }
 
 //________________________________________________________________________
@@ -660,7 +719,24 @@ bool XrdClientReadCache::MakeFreeSpace(long long bytes)
     XrdSysMutexHelper mtx(fMutex);
 
     while (fMaxCacheSize - fTotalByteCount < bytes)
-	if (!RemoveLRUItem()) break;
+      if (!RemoveItem())
+	return false;
 
     return true;
+}
+
+
+void XrdClientReadCache::GetInfo(int &size, long long &bytessubmitted,
+				 long long &byteshit,
+				 long long &misscount,
+				 float &missrate,
+				 long long &readreqcnt,
+				 float &bytesusefulness ) {
+  size = fMaxCacheSize;
+  bytessubmitted = fBytesSubmitted;
+  byteshit = fBytesHit;
+  misscount = fMissCount;
+  missrate = fMissRate;
+  readreqcnt = fReadsCounter;
+  bytesusefulness = fBytesUsefulness;
 }

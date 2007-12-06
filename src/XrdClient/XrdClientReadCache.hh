@@ -20,6 +20,7 @@
 #include "XrdClient/XrdClientVector.hh"
 #include "XrdClient/XrdClientConst.hh"
 
+
 //
 // XrdClientReadCacheItem
 //
@@ -138,14 +139,19 @@ private:
     long long       fMaxCacheSize;
     long long       fMissCount;        // Counter of the cache misses
     float           fMissRate;            // Miss rate
-    XrdSysRecMutex     fMutex;
+    XrdSysRecMutex  fMutex;
     long long       fReadsCounter;     // Counter of all the attempted reads (hit or miss)
+    int             fBlkRemPolicy;     // The algorithm used to remove "old" chunks
     long long       fTimestampTickCounter;        // Aging mechanism yuk!
     long long       fTotalByteCount;
 
     long long       GetTimestampTick();
     bool            MakeFreeSpace(long long bytes);
+
+    bool            RemoveItem();
     bool            RemoveLRUItem();
+    bool            RemoveFirstItem();
+
     inline void     UpdatePerfCounters() {
 	if (fReadsCounter > 0)
 	    fMissRate = (float)fMissCount / fReadsCounter;
@@ -157,12 +163,44 @@ private:
     int             FindInsertionApprox_rec(int startidx, int endidx,
 					long long begin_offs);
 public:
+
+    // The algos available for the removal of "old" blocks
+    enum {
+      kRmBlk_LRU = 0,
+      kRmBlk_LeastOffs,
+      kRmBlk_FIFO
+    };
+
     XrdClientReadCache();
     ~XrdClientReadCache();
   
     long          GetDataIfPresent(const void *buffer, long long begin_offs,
 				   long long end_offs, bool PerfCalc,
 				   XrdClientIntvList &missingblks, long &outstandingblks);
+
+  void                       GetInfo(
+					  // The actual cache size
+					  int &size,
+
+					  // The number of bytes submitted since the beginning
+					  long long &bytessubmitted,
+
+					  // The number of bytes found in the cache (estimate)
+					  long long &byteshit,
+
+					  // The number of reads which did not find their data
+                                          // (estimate)
+					  long long &misscount,
+
+					  // miss/totalreads ratio (estimate)
+					  float &missrate,
+
+					  // number of read requests towards the cache
+					  long long &readreqcnt,
+
+					  // ratio between bytes found / bytes submitted
+					  float &bytesusefulness
+				     );
 
     inline long long GetTotalByteCount() {
 	XrdSysMutexHelper m(fMutex);
@@ -193,6 +231,15 @@ public:
     void            RemoveItems();
     void            RemoveItems(long long begin_offs, long long end_offs);
     void            RemovePlaceholders();
+
+
+    void            SetSize(int sz) {
+      fMaxCacheSize = sz;
+    }
+
+    void            SetBlkRemovalPolicy(int p) {
+      fBlkRemPolicy = p;
+    }
 
     // To check if a block dimension will fit into the cache
     inline bool   WillFit(long long bc) {

@@ -62,12 +62,8 @@ XrdClient::XrdClient(const char *url) {
     memset(&fStatInfo, 0, sizeof(fStatInfo));
     memset(&fOpenPars, 0, sizeof(fOpenPars));
 
-   // Pick-up the latest setting of the debug level
-   DebugSetLevel(EnvGetLong(NAME_DEBUG));
-
-   int CacheSize = EnvGetLong(NAME_READCACHESIZE);
-
-    fUseCache = (CacheSize > 0);
+    // Pick-up the latest setting of the debug level
+    DebugSetLevel(EnvGetLong(NAME_DEBUG));
 
     if (!ConnectionManager)
 	Info(XrdClientDebug::kNODEBUG,
@@ -89,6 +85,12 @@ XrdClient::XrdClient(const char *url) {
     }
 
     fConnModule->SetRedirHandler(this);
+
+    int CacheSize = EnvGetLong(NAME_READCACHESIZE);
+    int RaSize = EnvGetLong(NAME_READAHEADSIZE);
+    int RmPolicy = EnvGetLong(NAME_READCACHEBLKREMPOLICY);
+    fUseCache = (CacheSize > 0);
+    SetCacheParameters(CacheSize, RaSize, RmPolicy);
 }
 
 //_____________________________________________________________________________
@@ -382,8 +384,6 @@ int XrdClient::Read(void *buf, long long offset, int len) {
     Stat(&stinfo);
     len = xrdmax(0, xrdmin(len, stinfo.size - offset));
 
-    kXR_int32 rasize = EnvGetLong(NAME_READAHEADSIZE);
-
     bool retrysync = false;
 
     
@@ -429,9 +429,9 @@ int XrdClient::Read(void *buf, long long offset, int len) {
 		    // Are we using read ahead?
 		    // We read ahead only if the last byte we got is near (or over) to the last byte read
 		    // in advance. But not too much over.
-		    if ( (fReadAheadLast - (offset+len) < rasize) &&
+		    if ( (fReadAheadLast - (offset+len) < fReadAheadSize) &&
 			 //(fReadAheadLast - (offset+len) > -10*rasize) &&
-			 (rasize > 0) ) {
+			 (fReadAheadSize > 0) ) {
 
 			kXR_int64 araoffset;
 			kXR_int32 aralen;
@@ -440,12 +440,12 @@ int XrdClient::Read(void *buf, long long offset, int len) {
 			// in advance into the cache. The higher the araoffset will be,
 			// the best chances we have not to cause overhead
 			araoffset = xrdmax(fReadAheadLast, offset + len);
-			aralen = xrdmin(rasize,
-					offset + len + rasize -
+			aralen = xrdmin(fReadAheadSize,
+					offset + len + fReadAheadSize -
 					xrdmax(offset + len, fReadAheadLast));
 
 			if (aralen > 0) {
-			    TrimReadRequest(araoffset, aralen, rasize);
+			    TrimReadRequest(araoffset, aralen, fReadAheadSize);
 			    fReadAheadLast = araoffset + aralen;
 			    Read_Async(araoffset, aralen);
 			}
@@ -479,14 +479,14 @@ int XrdClient::Read(void *buf, long long offset, int len) {
 	
 		// Here we forget to have read in advance if the last byte taken is
 		// too much before the first read ahead byte
-		if ( fReadAheadLast - 2*rasize > (offset+len) ) fReadAheadLast = offset+len-1;
+		if ( fReadAheadLast - 2*fReadAheadSize > (offset+len) ) fReadAheadLast = offset+len-1;
 
 		// Are we using read ahead?
 		// We read ahead only if the last byte we got is near (or over) to the last byte read
 		// in advance. But not too much over.
-		if ( (fReadAheadLast - (offset+len) < rasize) &&
+		if ( (fReadAheadLast - (offset+len) < fReadAheadSize) &&
 		     //(fReadAheadLast - (offset+len) > -10*rasize) &&
-		     (rasize > 0) ) {
+		     (fReadAheadSize > 0) ) {
 
 		    kXR_int64 araoffset;
 		    kXR_int32 aralen;
@@ -501,12 +501,12 @@ int XrdClient::Read(void *buf, long long offset, int len) {
                     else
                       araoffset = xrdmax(fReadAheadLast, offset + len);
 
-		    aralen = xrdmin(rasize,
-				    offset + len + rasize -
+		    aralen = xrdmin(fReadAheadSize,
+				    offset + len + fReadAheadSize -
 				    xrdmax(offset + len, fReadAheadLast));
 
 		    if (aralen > 0) {
-			TrimReadRequest(araoffset, aralen, rasize);
+			TrimReadRequest(araoffset, aralen, fReadAheadSize);
 			fReadAheadLast = araoffset + aralen;
 			Read_Async(araoffset, aralen);
 		    }
@@ -1433,11 +1433,19 @@ bool XrdClient::UseCache(bool u)
   bool r = fUseCache;
 
   if (!u) {
-    fUseCache = FALSE;
+    fUseCache = false;
   } else {
-    if (EnvGetLong(NAME_READCACHESIZE) > 0)
-      fUseCache = TRUE;
+    int size;
+    long long bytessubmitted, byteshit, misscount, readreqcnt;
+    float missrate, bytesusefulness;
+
+
+    if ( fConnModule &&
+	 fConnModule->GetCacheInfo(size, bytessubmitted, byteshit, misscount, missrate, readreqcnt, bytesusefulness) &&
+	 size )
+      fUseCache = true;
   }
+
   // Return the previous setting
   return r;
 }
