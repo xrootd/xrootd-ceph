@@ -4,7 +4,7 @@
 #------------------------------------------------------------------------------#
 include ../GNUmake.env
 
-BINLIBS  = $(CRYPTLIB) $(LIBAFS) -L$(LIBDIR) -lXrdCrypto -lXrdSut -lXrdOuc -lXrdSys
+BINLIBS  = $(CRYPTLIB) -L$(LIBDIR) -lXrdCrypto -lXrdSut -lXrdOuc -lXrdSys
 
 LIBDEPS = $(LIBDIR)/libXrdCrypto.a $(LIBDIR)/libXrdSut.a \
           $(LIBDIR)/libXrdOuc.a $(LIBDIR)/libXrdSys.a
@@ -65,7 +65,7 @@ anything: $(TARGETS)
 
 $(LIBRARY): $(OBJECTS) $(LIBDEPS)
 	@echo Creating shared library $(LIBRARY) 
-	$(ECHO)$(CC) $(OBJECTS) $(LDSO) $(BINLIBS) $(LIBS) -lresolv -o $(LIBRARY)
+	$(ECHO)$(CC) $(OBJECTS) $(LDSO) $(BINLIBS) $(LIBAFS) $(LIBS) -lresolv -o $(LIBRARY)
 
 $(SRVADMIN): $(OBJECTA) $(LIBDEPS)
 	@echo Creating executable $(SRVADMIN) 
