@@ -56,7 +56,7 @@ long long XrdClientReadCache::GetTimestampTick()
 }
   
 //________________________________________________________________________
-XrdClientReadCache::XrdClientReadCache()
+XrdClientReadCache::XrdClientReadCache() : fItems(16384)
 {
     // Constructor
 
@@ -91,6 +91,9 @@ bool XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
 {
     if (!buffer) return true;
     XrdClientReadCacheItem *itm;
+
+
+    fMaxCacheSize = EnvGetLong(NAME_READCACHESIZE);
 
     Info(XrdClientDebug::kHIDEBUG, "Cache",
 	 "Submitting " << begin_offs << "->" << end_offs << " to cache.");
@@ -131,10 +134,10 @@ bool XrdClientReadCache::SubmitRawData(const void *buffer, long long begin_offs,
 	    fItems.Insert(itm, pos);
 	    fTotalByteCount += itm->Size();
 	    fBytesSubmitted += itm->Size();
-            return true;
 	}
-        return false;
-    }
+
+	return true;
+    } // if
 
     return false;
 
