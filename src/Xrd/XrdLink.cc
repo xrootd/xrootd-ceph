@@ -257,9 +257,8 @@ int XrdLink::Close(int defer)
    if (defer)
       {TRACE(DEBUG, "Defered close " <<ID <<" FD=" <<FD);
        if (FD > 1)
-          {if (!KeepFD) dup2(devNull, FD);
-           FD = -FD;
-           Instance = 0;
+          {fd = FD; FD = -FD; Instance = 0;
+           if (!KeepFD) dup2(devNull, fd);
           }
        opMutex.UnLock();
        return 0;
@@ -489,7 +488,7 @@ int XrdLink::Recv(char *Buff, int Blen)
    if (LockReads) rdMutex.UnLock();
 
    if (rlen >= 0) return int(rlen);
-   XrdLog.Emsg("Link", errno, "receive from", ID);
+   if (FD >= 0) XrdLog.Emsg("Link", errno, "receive from", ID);
    return -1;
 }
 
@@ -515,10 +514,10 @@ int XrdLink::Recv(char *Buff, int Blen, int timeout)
             {if (retc == 0)
                 {tardyCnt++;
                  if (totlen  && (++stallCnt & 0xff) == 1)
-                    XrdLog.Emsg("Link", ID, "read timed out");
+                    TRACE(DEBUG, ID << " read timed out");
                  return int(totlen);
                 }
-             return XrdLog.Emsg("Link", -errno, "poll", ID);
+             return (FD >= 0 ? XrdLog.Emsg("Link", -errno, "poll", ID) : -1);
             }
 
          // Verify it is safe to read now
@@ -535,7 +534,7 @@ int XrdLink::Recv(char *Buff, int Blen, int timeout)
          do {rlen = recv(FD, Buff, Blen, 0);} while(rlen < 0 && errno == EINTR);
          if (rlen <= 0)
             {if (!rlen) return -ENOMSG;
-             return XrdLog.Emsg("Link", -errno, "receive from", ID);
+             return (FD<0 ? -1 : XrdLog.Emsg("Link",-errno,"receive from",ID));
             }
          BytesIn += rlen; totlen += rlen; Blen -= rlen; Buff += rlen;
         }
@@ -560,8 +559,9 @@ int XrdLink::RecvAll(char *Buff, int Blen)
    if (LockReads) rdMutex.UnLock();
 
    if (int(rlen) == Blen) return Blen;
-   if (rlen < 0) XrdLog.Emsg("Link", errno, "recieve from", Lname);
-      else       XrdLog.Emsg("Link", "Premature end of recv().");
+   if (!rlen) {TRACE(DEBUG, "No RecvAll() data from " <<Lname <<" FD=" <<FD);}
+      else if (rlen > 0) XrdLog.Emsg("RecvAll","Premature end from", Lname);
+              else if (FD >= 0) XrdLog.Emsg("Link",errno,"recieve from",Lname);
    return -1;
 }
 
@@ -599,32 +599,41 @@ int XrdLink::Send(const char *Buff, int Blen)
   
 int XrdLink::Send(const struct iovec *iov, int iocnt, int bytes)
 {
-   int i, bytesleft, retc = 0;
+   ssize_t bytesleft, n, retc = 0;
+   const char *Buff;
+   int i;
 
 // Add up bytes if they were not given to us
 //
    if (!bytes) for (i = 0; i < iocnt; i++) bytes += iov[i].iov_len;
-   bytesleft = bytes;
+   bytesleft = static_cast<ssize_t>(bytes);
 
-// Get a lock
+// Get a lock and assume we will be successful (statistically we are)
 //
    wrMutex.Lock();
    isIdle = 0;
    BytesOut += bytes;
 
-// Write the data out. For now we will assume that writev() fully completes
-// an iov element or never starts. That's true on most platforms but not all. 
-// So, we will force an error if our assumption does not hold for this platform
-// and then go back and convert the writev() to a write()*iocnt for those.
+// Write the data out. On some version of Unix (e.g., Linux) a writev() may
+// end at any time without writing all the bytes when directed to a socket.
+// So, we attempt to resume the writev() using a combination of write() and
+// a writev() continuation. This approach slowly converts a writev() to a
+// series of writes if need be. We must do this inline because we must hold
+// the lock until all the bytes are written or an error occurs.
 //
    while(bytesleft)
-        {if ((retc = writev(FD, iov, iocnt)) < 0)
-            if (errno == EINTR) continue;
-               else break;
-         if (retc >= bytesleft) break;
-         if (retc != (int)iov->iov_len)
-            {retc = -1; errno = ECANCELED; break;}
-         iov++; iocnt--; bytesleft -= retc; BytesOut += retc;
+        {do {retc = writev(FD, iov, iocnt);} while(retc < 0 && errno == EINTR);
+         if (retc >= bytesleft || retc < 0) break;
+         bytesleft -= retc;
+         while(retc >= (n = static_cast<ssize_t>(iov->iov_len)))
+              {retc -= n; iov++; iocnt--;}
+         Buff = (const char *)iov->iov_base + retc; n -= retc; iov++; iocnt--;
+         while(n) {if ((retc = write(FD, Buff, n)) < 0)
+                      if (errno == EINTR) continue;
+                         else break;
+                   n -= retc; Buff += retc;
+                  }
+         if (retc < 0 || iocnt < 1) break;
         }
 
 // All done
