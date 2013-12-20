@@ -3,8 +3,8 @@
 #-------------------------------------------------------------------------------
 Name:      xrootd
 Epoch:     1
-Version:   __VERSION__
-Release:   __RELEASE__%{?dist}
+Version:   3.3.4
+Release:   2.CERN%{?dist}
 Summary:   Extended ROOT file server
 Group:     System Environment/Daemons
 License:   LGPL
