@@ -20,8 +20,8 @@
 #-------------------------------------------------------------------------------
 Name:      xrootd
 Epoch:     1
-Version:   __VERSION__
-Release:   __RELEASE__%{?dist}%{?_with_cpp11:.cpp11}%{?_with_clang:.clang}
+Version:   4.1.1
+Release:   2.CERN%{?dist}%{?_with_cpp11:.cpp11}%{?_with_clang:.clang}
 Summary:   Extended ROOT file server
 Group:     System Environment/Daemons
 License:   LGPLv3+
@@ -31,7 +31,7 @@ URL:       http://xrootd.org/
 # cd xrootd
 # git-archive master | gzip -9 > ~/rpmbuild/SOURCES/xrootd.tgz
 Source0:   xrootd.tar.gz
-Source1:   xrootd-3.3.6.tar.gz
+Source1:   xrootd-3.3.6-5.CERN.tar.gz
 
 BuildRoot: %{_tmppath}/%{name}-root
 
@@ -320,7 +320,7 @@ popd
 
 doxygen Doxyfile
 
-pushd ../xrootd-3.3.6
+pushd ../xrootd-3.3.6-5.CERN
 mkdir build
 pushd build
 cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_PERL=FALSE ../
@@ -337,7 +337,7 @@ rm -rf $RPM_BUILD_ROOT
 #-------------------------------------------------------------------------------
 # Install 3.3.6 compat
 #-------------------------------------------------------------------------------
-pushd xrootd-3.3.6/build
+pushd xrootd-3.3.6-5.CERN/build
 make install DESTDIR=$RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_ROOT%{_includedir}
 rm -rf $RPM_BUILD_ROOT%{_datadir}
