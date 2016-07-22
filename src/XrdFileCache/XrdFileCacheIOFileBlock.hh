@@ -64,7 +64,7 @@ namespace XrdFileCache
          //! Called to check if destruction needs to be done in a separate task.
          virtual bool ioActive();
 
-         virtual int  FStat(struct stat &sbuff);
+         virtual int  Fstat(struct stat &sbuff);
          
          virtual long long FSize();
 
@@ -74,11 +74,14 @@ namespace XrdFileCache
          long long                  m_blocksize; //!< size of file-block
          std::map<int, File*>       m_blocks;    //!< map of created blocks
          XrdSysMutex                m_mutex;     //!< map mutex
-         struct stat               *m_localStat; 
+         struct stat               *m_localStat;
+         Info                       m_info; 
+         XrdOssDF*                  m_infoFile;
 
          void GetBlockSizeFromPath();
          int initLocalStat();
          File* newBlockFile(long long off, int blocksize);
+         void  CloseInfoFile();
    };
 }
 

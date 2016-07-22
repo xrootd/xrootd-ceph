@@ -44,10 +44,7 @@ namespace XrdFileCache
    //----------------------------------------------------------------------------
    class Info
    {
-      private:
-         static unsigned char cfiBIT(int n) { return 1 << n; }
-
-      public:
+   public:
          // !Access statistics
          struct AStat
          {
@@ -99,21 +96,29 @@ namespace XrdFileCache
          //---------------------------------------------------------------------
          //! \brief Rea load content from cinfo file into this object
          //!
-         //! @param fp file handle
+         //! @param fp    file handle
+         //! @param fname optional file name for trace output
          //!
-         //! @return number of bytes read
+         //! @return true on success
          //---------------------------------------------------------------------
-         int Read(XrdOssDF* fp);
+         bool Read(XrdOssDF* fp, const std::string &fname="<unknown>");
 
          //---------------------------------------------------------------------
          //! Write number of blocks and read buffer size
+         //! @return true on success
          //---------------------------------------------------------------------
-         void WriteHeader(XrdOssDF* fp);
+         bool WriteHeader(XrdOssDF* fp, const std::string &fname="<unknown>");
+
+          //---------------------------------------------------------------------
+         //! Disable allocating, writing, and reading of downlaod status
+         //---------------------------------------------------------------------
+         void DisableDownloadStatus();
 
          //---------------------------------------------------------------------
          //! Append access time, and cache statistics
+         //! @return true on success
          //---------------------------------------------------------------------
-         void AppendIOStat(AStat& stat, XrdOssDF* fp);
+         bool AppendIOStat(AStat& stat, XrdOssDF* fp, const std::string &fname="<unknown>");
 
          //---------------------------------------------------------------------
          //! Check download status in given block range
@@ -195,38 +200,42 @@ namespace XrdFileCache
          const static char* m_traceID;
 
          XrdOucTrace* GetTrace() const {return m_trace;}
-      protected:
+
+   protected:
 
          XrdOucTrace*   m_trace;
 
-         int            m_version;    //!< info version
-         long long      m_bufferSize; //!< prefetch buffer size
+         int            m_version;           //!< info version
+         long long      m_bufferSize;        //!< prefetch buffer size
          bool           m_hasPrefetchBuffer; //!< constains current prefetch score
-         long long      m_fileSize; //!< number of file blocks
-         int            m_sizeInBits; //!< number of file blocks
-         unsigned char *m_buff_fetched;       //!< download state vector
-         unsigned char *m_buff_write_called;  //!< disk written state vector
-         unsigned char *m_buff_prefetch;  //!< prefetch state vector
-         int            m_accessCnt;  //!< number of written AStat structs
-         bool           m_complete;   //!< cached          
+         long long      m_fileSize;          //!< number of file blocks
+         int            m_sizeInBits;        //!< number of file blocks
+         unsigned char *m_buff_fetched;      //!< download state vector
+         unsigned char *m_buff_write_called; //!< disk written state vector
+         unsigned char *m_buff_prefetch;     //!< prefetch state vector
+         int            m_accessCnt;         //!< number of written AStat structs
+         bool           m_complete;          //!< cached
+
+   private:
+         inline unsigned char cfiBIT(int n) const { return 1 << n; }
    };
 
    inline bool Info::TestBit(int i) const
    {
-      int cn = i/8;
+      const int cn = i/8;
       assert(cn < GetSizeInBytes());
 
-      int off = i - cn*8;
+      const int off = i - cn*8;
       return (m_buff_fetched[cn] & cfiBIT(off)) == cfiBIT(off);
    }
 
    // AMT  could have only one function to test bit and pass an argument, but would loose clarity
    inline bool Info::TestPrefetchBit(int i) const
    {
-      int cn = i/8;
+      const int cn = i/8;
       assert(cn < GetSizeInBytes());
 
-      int off = i - cn*8;
+      const int off = i - cn*8;
       return (m_buff_prefetch[cn] & cfiBIT(off)) == cfiBIT(off);
    }
 
@@ -246,7 +255,10 @@ namespace XrdFileCache
 
    inline int Info::GetSizeInBytes() const
    {
-      return ((m_sizeInBits -1)/8 + 1);
+       if (m_sizeInBits)
+           return ((m_sizeInBits - 1)/8 + 1);
+       else
+           return 0;
    }
 
    inline int Info::GetSizeInBits() const
@@ -266,7 +278,9 @@ namespace XrdFileCache
 
    inline bool Info::IsAnythingEmptyInRng(int firstIdx, int lastIdx) const
    {
-      for (int i = firstIdx; i <= lastIdx; ++i)
+      // XXX rewrite to use full byte comparisons outside of edges ?
+      // Also, it is always called with fisrtsIdx = 0, lastIdx = m_sizeInBits.
+      for (int i = firstIdx; i < lastIdx; ++i)
          if (!TestBit(i)) return true;
 
       return false;
@@ -274,33 +288,33 @@ namespace XrdFileCache
 
    inline void Info::UpdateDownloadCompleteStatus()
    {
-      m_complete = !IsAnythingEmptyInRng(0, m_sizeInBits-1);
+      m_complete = ! IsAnythingEmptyInRng(0, m_sizeInBits);
    }
 
    inline void Info::SetBitWriteCalled(int i)
    {
-      int cn = i/8;
+      const int cn = i/8;
       assert(cn < GetSizeInBytes());
 
-      int off = i - cn*8;
+      const int off = i - cn*8;
       m_buff_write_called[cn] |= cfiBIT(off);
    }
 
    inline void Info::SetBitFetched(int i)
    {
-      int cn = i/8;
+      const int cn = i/8;
       assert(cn < GetSizeInBytes());
 
-      int off = i - cn*8;
+      const int off = i - cn*8;
       m_buff_fetched[cn] |= cfiBIT(off);
    }
 
    inline void Info::SetBitPrefetch(int i)
    {
-      int cn = i/8;
+      const int cn = i/8;
       assert(cn < GetSizeInBytes());
 
-      int off = i - cn*8;
+      const int off = i - cn*8;
       m_buff_prefetch[cn] |= cfiBIT(off);
    }
 
@@ -309,5 +323,10 @@ namespace XrdFileCache
    {
       return m_bufferSize;
    }
+
+
+   //----------------------------------------------------------------
+   // XrdFileCacheInfoBlock
+   //----------------------------------------------------------------
 }
 #endif
