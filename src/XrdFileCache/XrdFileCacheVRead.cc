@@ -139,7 +139,8 @@ int File::ReadV(const XrdOucIOVec *readV, int n)
    if (bytesRead >= 0 && direct_handler != 0)
    {
       XrdSysCondVarHelper _lck(direct_handler->m_cond);
-      if (direct_handler->m_to_wait == 1)
+
+      while (direct_handler->m_to_wait > 0)
       {
          direct_handler->m_cond.Wait();
       }
@@ -204,7 +205,9 @@ bool File::VReadPreProcess(const XrdOucIOVec *readV, int n,
                            ReadVBlockListDisk       &blocks_on_disk,
                            std::vector<XrdOucIOVec> &chunkVec)
 {
-   XrdSysCondVarHelper _lck(m_downloadCond);
+   BlockList_t blks_to_request;
+
+   m_downloadCond.Lock();
 
    for (int iov_idx = 0; iov_idx < n; iov_idx++)
    {
@@ -233,10 +236,12 @@ bool File::VReadPreProcess(const XrdOucIOVec *readV, int n,
          {
             if (Cache::GetInstance().RequestRAMBlock())
             {
-               Block *b = RequestBlock(block_idx, false);
+               Block *b = PrepareBlockRequest(block_idx, false);
+               // MT XXX this can not fail (other than out of memory which we don't handle).
                if (!b) return false;
-               blocks_to_process.AddEntry(b, iov_idx);
                inc_ref_count(b);
+               blocks_to_process.AddEntry(b, iov_idx);
+               blks_to_request.push_back(b);
 
                TRACEF(Dump, "VReadPreProcess request block " << block_idx);
             }
@@ -254,6 +259,10 @@ bool File::VReadPreProcess(const XrdOucIOVec *readV, int n,
          }
       }
    }
+
+   m_downloadCond.UnLock();
+
+   ProcessBlockRequests(blks_to_request);
 
    return true;
 }
@@ -323,15 +332,14 @@ int File::VReadProcessBlocks(const XrdOucIOVec *readV, int n,
                ++bi;
             }
          }
-               
+
          if (finished.empty())
          {
             m_downloadCond.Wait();
             continue;
          }
       }
-            
-            
+
       std::vector<ReadVChunkListRAM>::iterator bi = finished.begin();
       while (bi != finished.end())
       {  
