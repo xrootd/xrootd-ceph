@@ -35,6 +35,18 @@
 #include "XrdSsi/XrdSsiSessReal.hh"
 
 /******************************************************************************/
+/*                               G l o b a l s                                */
+/******************************************************************************/
+  
+namespace
+{
+       XrdSysMutex           ChMutex;
+       const char            Channel[4] = {'0', '1', '2', '3'};
+       Atomic(unsigned int)  Chnum      = 0;
+static const  unsigned int   ChMask     = 3;
+}
+
+/******************************************************************************/
 /*                            D e s t r u c t o r                             */
 /******************************************************************************/
   
@@ -90,10 +102,19 @@ bool XrdSsiServReal::GenURL(XrdSsiService::Resource *rP,
                             char *buff, int blen, bool uCon)
 {
    static const char affTab[] = "\0\0n\0w\0s\0S";
-   const char *xUsr, *xAt, *iSep, *iVal, *tVar, *tVal, *uVar, *uVal;
+   const char *iSep, *iVal, *tVar, *tVal, *uVar, *uVal;
    const char *aVar, *aVal;
+   unsigned int theCh;
    int n;
+   char ChID;
    bool xCGI = false;
+
+// Get the channel number to use for this request
+//
+   Atomic_BEG(ChMutex);
+   theCh = Atomic_INC(Chnum);
+   Atomic_END(ChMutex);
+   ChID = Channel[theCh & ChMask];
 
 // Preprocess avoid list, if any
 //
@@ -111,14 +132,12 @@ bool XrdSsiServReal::GenURL(XrdSsiService::Resource *rP,
             xCGI = true;
            }
 
-// Check if we need to qualify the host with a user name
+// Check if we need to specify a user name
 //
-   if (!rP->rDesc.rUser || !(*rP->rDesc.rUser)) xUsr = xAt = uVar = uVal = "";
+   if (!rP->rDesc.rUser || !(*rP->rDesc.rUser)) uVar = uVal = "";
       else {uVar = (xCGI ? "&ssi.user=" : "?ssi.user=");
             uVal = rP->rDesc.rUser;
             xCGI = true;
-            if (!uCon) xUsr = xAt = "";
-               else  {xUsr = rP->rDesc.rUser; xAt = "@";}
            }
 
 // Preprocess the cgi information
@@ -130,9 +149,9 @@ bool XrdSsiServReal::GenURL(XrdSsiService::Resource *rP,
            }
 
 // Generate appropriate url
-//                                             t   a   u   i
-   n = snprintf(buff, blen, "xroot://%s%s%s/%s%s%s%s%s%s%s%s%s",
-                             xUsr, xAt, manNode,
+//                                               t   a   u   i
+   n = snprintf(buff, blen, "xroot://ssi%c@%s/%s%s%s%s%s%s%s%s%s",
+                             ChID, manNode,
                              rP->rDesc.rName, tVar, tVal, aVar, aVal,
                                               uVar, uVal, iSep, iVal);
 
