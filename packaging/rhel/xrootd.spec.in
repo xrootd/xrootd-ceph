@@ -25,12 +25,6 @@
     %define _with_ceph 1
 %endif
 
-%if %{?fedora}%{!?fedora:0} >= 26
-    %define use_compat_openssl 1
-%else
-    %define use_compat_openssl 0
-%endif
-
 # Remove default rpm python bytecompiling scripts
 %global __os_install_post \
     %(echo '%{__os_install_post}' | \
@@ -69,11 +63,7 @@ BuildRequires: krb5-devel
 BuildRequires: zlib-devel
 BuildRequires: ncurses-devel
 BuildRequires: python-devel
-%if %{use_compat_openssl}
-BuildRequires: compat-openssl10-devel
-%else 
 BuildRequires: openssl-devel
-%endif
 
 BuildRequires: selinux-policy-devel
 
@@ -481,6 +471,8 @@ install -p -m 644 packaging/common/xrootd.logrotate $RPM_BUILD_ROOT%{_sysconfdir
 
 install -m 644 packaging/common/xrootd-clustered.cfg $RPM_BUILD_ROOT%{_sysconfdir}/xrootd/xrootd-clustered.cfg
 install -m 644 packaging/common/xrootd-standalone.cfg $RPM_BUILD_ROOT%{_sysconfdir}/xrootd/xrootd-standalone.cfg
+install -m 644 packaging/common/xrootd-filecache-clustered.cfg $RPM_BUILD_ROOT%{_sysconfdir}/xrootd/xrootd-filecache-clustered.cfg
+install -m 644 packaging/common/xrootd-filecache-standalone.cfg $RPM_BUILD_ROOT%{_sysconfdir}/xrootd/xrootd-filecache-standalone.cfg
 
 # client plug-in config
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/xrootd/client.plugins.d
@@ -640,6 +632,8 @@ fi
 %{_datadir}/xrootd
 %attr(-,xrootd,xrootd) %config(noreplace) %{_sysconfdir}/xrootd/xrootd-clustered.cfg
 %attr(-,xrootd,xrootd) %config(noreplace) %{_sysconfdir}/xrootd/xrootd-standalone.cfg
+%attr(-,xrootd,xrootd) %config(noreplace) %{_sysconfdir}/xrootd/xrootd-filecache-clustered.cfg
+%attr(-,xrootd,xrootd) %config(noreplace) %{_sysconfdir}/xrootd/xrootd-filecache-standalone.cfg
 %attr(-,xrootd,xrootd) %dir %{_var}/log/xrootd
 %attr(-,xrootd,xrootd) %dir %{_var}/run/xrootd
 %attr(-,xrootd,xrootd) %dir %{_var}/spool/xrootd
@@ -696,6 +690,7 @@ fi
 
 %files client-devel
 %defattr(-,root,root,-)
+%{_bindir}/xrdgsitest
 %{_includedir}/xrootd/XrdCl
 %{_includedir}/xrootd/XrdClient
 %{_includedir}/xrootd/XrdPosix
@@ -703,6 +698,7 @@ fi
 %{_libdir}/libXrdClient.so
 %{_libdir}/libXrdFfs.so
 %{_libdir}/libXrdPosix.so
+%{_mandir}/man1/xrdgsitest.1*
 
 %files server-libs
 %defattr(-,root,root,-)
@@ -831,6 +827,9 @@ fi
 # Changelog
 #-------------------------------------------------------------------------------
 %changelog
+* Tue Dec 13 2016 Gerardo Ganis <gerardo.ganis@cern.ch>
+- Add xrdgsitest to xrootd-client-devel
+
 * Mon Mar 16 2015 Lukasz Janyst <ljanyst@cern.ch>
 - create the python package
 
