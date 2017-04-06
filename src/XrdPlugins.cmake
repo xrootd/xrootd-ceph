@@ -121,7 +121,7 @@ add_library(
 
 target_link_libraries(
   ${LIB_XRD_SSI}
-  XrdSsiLib
+  XrdSsiLibV1
   XrdUtils
   XrdServer )
 
@@ -142,7 +142,7 @@ add_library(
 
 target_link_libraries(
   ${LIB_XRD_SSILOG}
-  XrdSsiLib
+  XrdSsiLibV1
   XrdUtils
   XrdServer )
 
