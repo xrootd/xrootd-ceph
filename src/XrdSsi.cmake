@@ -13,7 +13,7 @@ set( XRD_SSI_SHMAP_SOVERSION 1 )
 # The XrdSsi library
 #-------------------------------------------------------------------------------
 add_library(
-  XrdSsiLib
+  XrdSsiLibV1
   SHARED
                                        XrdSsi/XrdSsiAtomics.hh
                                        XrdSsi/XrdSsiBVec.hh
@@ -41,14 +41,14 @@ XrdSsi/XrdSsiTaskReal.cc               XrdSsi/XrdSsiTaskReal.hh
 XrdSsi/XrdSsiUtils.cc                  XrdSsi/XrdSsiUtils.hh)
 
 target_link_libraries(
-  XrdSsiLib
+  XrdSsiLibV1
   XrdCl
   XrdServer
   XrdUtils
   pthread )
 
 set_target_properties(
-  XrdSsiLib
+  XrdSsiLibV1
   PROPERTIES
   VERSION   ${XRD_SSI_VERSION}
   SOVERSION ${XRD_SSI_SOVERSION}
@@ -80,5 +80,5 @@ set_target_properties(
 # Install
 #-------------------------------------------------------------------------------
 install(
-  TARGETS XrdSsiLib XrdSsiShMap
+  TARGETS XrdSsiLibV1 XrdSsiShMap
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} )

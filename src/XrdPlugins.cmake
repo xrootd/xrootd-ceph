@@ -8,7 +8,7 @@ set( LIB_XRD_BWM        XrdBwm-${PLUGIN_VERSION} )
 set( LIB_XRD_PSS        XrdPss-${PLUGIN_VERSION} )
 set( LIB_XRD_GPFS       XrdOssSIgpfsT-${PLUGIN_VERSION} )
 set( LIB_XRD_ZCRC32     XrdCksCalczcrc32-${PLUGIN_VERSION} )
-set( LIB_XRD_SSI        XrdSsi-${PLUGIN_VERSION} )
+set( LIB_XRD_SSI        XrdSsiV1-${PLUGIN_VERSION} )
 set( LIB_XRD_SSILOG     XrdSsiLog-${PLUGIN_VERSION} )
 set( LIB_XRD_THROTTLE   XrdThrottle-${PLUGIN_VERSION} )
 
