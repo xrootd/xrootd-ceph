@@ -555,7 +555,6 @@ namespace XrdCl
       "libXrdSecgsi.dylib",
       "libXrdSecgsiAuthzVO.dylib",
       "libXrdSecgsiGMAPDN.dylib",
-      "libXrdSecgsiGMAPLDAP.dylib",
       "libXrdSecpwd.dylib",
       "libXrdSecsss.dylib",
       "libXrdSecunix.dylib",
