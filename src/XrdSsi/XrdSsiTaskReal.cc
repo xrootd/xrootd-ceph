@@ -161,7 +161,7 @@ bool XrdSsiTaskReal::Kill() // Called with session mutex locked!
 //
    rInfo.Id(tskID); rInfo.Cmd(XrdSsiRRInfo::Can);
    DEBUG("Sending cancel request id=" <<tskID);
-   sessP->epFile.Truncate(rInfo.Info(), tmOut);
+   if (sessP->epFile.Truncate(rInfo.Info(), tmOut).IsOK()) {};
 
 // If we are in the message handler or if we have a message pending, then
 // the message handler will dispose of the task.
