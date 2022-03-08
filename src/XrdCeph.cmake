@@ -45,17 +45,7 @@ add_library(
   MODULE
   XrdCeph/XrdCephOss.cc       XrdCeph/XrdCephOss.hh
   XrdCeph/XrdCephOssFile.cc   XrdCeph/XrdCephOssFile.hh
-  XrdCeph/XrdCephOssDir.cc    XrdCeph/XrdCephOssDir.hh 
-  XrdCeph/XrdCephOssBufferedFile.cc   XrdCeph/XrdCephOssBufferedFile.hh
-  XrdCeph/XrdCephOssReadVFile.cc   XrdCeph/XrdCephOssReadVFile.hh
-  XrdCeph/XrdCephBuffers/XrdCephBufferDataSimple.cc XrdCeph/XrdCephBuffers/XrdCephBufferDataSimple.hh
-  XrdCeph/XrdCephBuffers/XrdCephBufferAlgSimple.cc  XrdCeph/XrdCephBuffers/XrdCephBufferAlgSimple.hh 
-  XrdCeph/XrdCephBuffers/CephIOAdapterRaw.cc  XrdCeph/XrdCephBuffers/CephIOAdapterRaw.hh
-  XrdCeph/XrdCephBuffers/CephIOAdapterAIORaw.cc  XrdCeph/XrdCephBuffers/CephIOAdapterAIORaw.hh
-  XrdCeph/XrdCephBuffers/BufferUtils.cc  XrdCeph/XrdCephBuffers/BufferUtils.hh
-  XrdCeph/XrdCephBuffers/XrdCephReadVNoOp.cc  XrdCeph/XrdCephBuffers/XrdCephReadVNoOp.hh
-  XrdCeph/XrdCephBuffers/XrdCephReadVBasic.cc  XrdCeph/XrdCephBuffers/XrdCephReadVBasic.hh
-)
+  XrdCeph/XrdCephOssDir.cc    XrdCeph/XrdCephOssDir.hh )
 
 target_link_libraries(
   ${LIB_XRD_CEPH}

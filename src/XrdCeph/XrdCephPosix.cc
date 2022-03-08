@@ -50,8 +50,6 @@
 
 #include "XrdCeph/XrdCephPosix.hh"
 
-#include "XrdSfs/XrdSfsFlags.hh" // for the OFFLINE flag status 
-
 /// small structs to store file metadata
 struct CephFile {
   std::string name;
