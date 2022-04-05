@@ -42,6 +42,7 @@ function printHelp()
 SOURCEPATH="../"
 OUTPUTPATH="."
 PRINTHELP=0
+RPM_NAME="xrootd-ceph"
 
 while test ${#} -ne 0; do
   if test x${1} = x--help; then
@@ -73,6 +74,16 @@ while test ${#} -ne 0; do
       exit 1
     fi
     USER_DEFINE="$USER_DEFINE --define \""${2}"\""
+    shift
+  elif test x${1} = x--rename; then
+    if test ${#} -lt 2; then
+      echo "--rename parameter needs an argument" 1>&2
+      exit 1
+    fi
+    cp rhel/xrootd-ceph.spec.in rhel/${2}.spec.in
+    sed -i "s/xrootd-ceph/${2}/" rhel/${2}.spec.in 
+    cp rhel/${2}.spec.in /root/rpmbuild/SPECS
+    RPM_NAME="${2}"
     shift
   fi
   shift
@@ -177,7 +188,7 @@ echo "[i] RPM compliant version: $VERSION-$RELEASE"
 # exit on any error
 set -e
 
-TEMPDIR=`mktemp -d /tmp/xrootd-ceph.srpm.XXXXXXXXXX`
+TEMPDIR=`mktemp -d /tmp/${RPM_NAME}.srpm.XXXXXXXXXX`
 RPMSOURCES=$TEMPDIR/rpmbuild/SOURCES
 mkdir -p $RPMSOURCES
 mkdir -p $TEMPDIR/rpmbuild/SRPMS
@@ -199,12 +210,12 @@ fi
 #-------------------------------------------------------------------------------
 # Generate the spec file
 #-------------------------------------------------------------------------------
-if test ! -r rhel/xrootd-ceph.spec.in; then
+if test ! -r rhel/${RPM_NAME}.spec.in; then
   echo "[!] The specfile template does not exist!" 1>&2
   exit 7
 fi
-cat rhel/xrootd-ceph.spec.in | sed "s/__VERSION__/$VERSION/" | \
-  sed "s/__RELEASE__/$RELEASE/" > $TEMPDIR/xrootd-ceph.spec
+cat rhel/${RPM_NAME}.spec.in | sed "s/__VERSION__/$VERSION/" | \
+  sed "s/__RELEASE__/$RELEASE/" > $TEMPDIR/${RPM_NAME}.spec
 
 #-------------------------------------------------------------------------------
 # Make a tarball of the latest commit on the branch
@@ -221,8 +232,8 @@ if test $? -ne 0; then
   exit 5
 fi
 
-git archive --prefix=xrootd-ceph/ --format=tar $COMMIT | gzip -9fn > \
-      $RPMSOURCES/xrootd-ceph.tar.gz
+git archive --prefix=${RPM_NAME}/ --format=tar $COMMIT | gzip -9fn > \
+      $RPMSOURCES/${RPM_NAME}.tar.gz
 
 if test $? -ne 0; then
   echo "[!] Unable to create the source tarball" 1>&2
@@ -244,13 +255,13 @@ eval "rpmbuild --define \"_topdir $TEMPDIR/rpmbuild\"    \
                --define \"_source_filedigest_algorithm md5\" \
                --define \"_binary_filedigest_algorithm md5\" \
                ${USER_DEFINE} \
-               -bs $TEMPDIR/xrootd-ceph.spec > $TEMPDIR/log"
+               -bs $TEMPDIR/${RPM_NAME}.spec > $TEMPDIR/log"
 if test $? -ne 0; then
   echo "[!] RPM creation failed" 1>&2
   exit 8
 fi
 
-cp $TEMPDIR/rpmbuild/SRPMS/xrootd-ceph*.src.rpm $OUTPUTPATH
+cp $TEMPDIR/rpmbuild/SRPMS/${RPM_NAME}*.src.rpm $OUTPUTPATH
 rm -rf $TEMPDIR
 
 echo "[i] Done."
