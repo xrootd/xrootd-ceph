@@ -67,7 +67,7 @@ public:
 protected:
   XrdCephOss *m_cephoss  = nullptr;
   XrdCephOssFile * m_xrdOssDF = nullptr; // holder of the XrdCephOssFile instance
-  std::unique_ptr<XrdCephBuffer::IXrdCephBufferAlg>(m_bufferAlg);
+  std::unique_ptr<XrdCephBuffer::IXrdCephBufferAlg> m_bufferAlg;
 
   int m_flags = 0;
   size_t m_bufsize = 16*1024*1024L; // default 16MiB size
