@@ -16,13 +16,22 @@ CephIOAdapterRaw::CephIOAdapterRaw(IXrdCephBufferData * bufferdata, int fd) :
 }
 
 CephIOAdapterRaw::~CephIOAdapterRaw() {
-  // nothing to specifically delete; just print out some stats if in debug
-    BUFLOG ("CephIOAdapterRaw::Summary fd:" << m_fd 
-              << " " << m_stats_write_req << " " << m_stats_write_bytes << " "
-              << m_stats_write_timer*1e-3 << " " << m_stats_write_longest*1e-3
-              << " " << m_stats_read_req << " " << m_stats_read_bytes << " "
-               << m_stats_read_timer*1e-3  << "  " << m_stats_read_longest*1e-3);
-            
+  // nothing to specifically to do; just print out some stats
+  float read_speed{0}, write_speed{0};
+  if (m_stats_read_req.load() > 0) {
+    read_speed = m_stats_read_bytes.load() / m_stats_read_timer.load() * 1e-3;
+  }
+  if (m_stats_write_req.load() > 0) {
+    write_speed = m_stats_write_bytes.load() / m_stats_write_timer.load() * 1e-3;
+  }
+  BUFLOG("CephIOAdapterRaw::Summary fd:" << m_fd
+                                << " nwrite:" << m_stats_write_req << " byteswritten:" << m_stats_write_bytes << " write_s:"
+                                << m_stats_write_timer * 1e-3 << " writemax_s" << m_stats_write_longest * 1e-3 
+                                << " write_MBs:" << write_speed 
+                                << " nread:" << m_stats_read_req << " bytesread:" << m_stats_read_bytes << " read_s:"
+                                << m_stats_read_timer * 1e-3 << "  readmax_s:" << m_stats_read_longest * 1e-3 
+                                << " read_MBs:" << read_speed );
+
 }
 
 ssize_t CephIOAdapterRaw::write(off64_t offset,size_t count) {

@@ -29,6 +29,8 @@
 #include <fcntl.h>
 #include <iomanip>
 #include <ctime>
+#include <chrono>
+#include <thread>
 
 #include "XrdCeph/XrdCephPosix.hh"
 #include "XrdOuc/XrdOucEnv.hh"
@@ -43,7 +45,10 @@
 #include "XrdCeph/XrdCephBuffers/CephIOAdapterRaw.hh"
 #include "XrdCeph/XrdCephBuffers/CephIOAdapterAIORaw.hh"
 
+
+
 using namespace XrdCephBuffer;
+using namespace std::chrono_literals;
 
 extern XrdSysError XrdCephEroute;
 extern XrdOucTrace XrdCephTrace;
@@ -51,7 +56,9 @@ extern XrdOucTrace XrdCephTrace;
 
 XrdCephOssBufferedFile::XrdCephOssBufferedFile(XrdCephOss *cephoss,XrdCephOssFile *cephossDF, 
                                                 size_t buffersize,const std::string& bufferIOmode):
-                  XrdCephOssFile(cephoss), m_cephoss(cephoss), m_xrdOssDF(cephossDF), m_bufsize(buffersize),
+                  XrdCephOssFile(cephoss), m_cephoss(cephoss), m_xrdOssDF(cephossDF), 
+                  m_maxBufferRetrySleepTime_ms(1000), 
+                  m_bufsize(buffersize),
                   m_bufferIOmode(bufferIOmode)
 {
 
@@ -155,12 +162,29 @@ ssize_t XrdCephOssBufferedFile::Read(off_t offset, size_t blen) {
 }
 
 ssize_t XrdCephOssBufferedFile::Read(void *buff, off_t offset, size_t blen) {
-  ssize_t rc = m_bufferAlg->read(buff, offset, blen);
+  int retry_counter{m_maxBufferRetries};
+  ssize_t rc {0};
+  while (retry_counter > 0) {
+    rc = m_bufferAlg->read(buff, offset, blen);
+    if (rc != -EBUSY) break; // either worked, or is a real non busy error
+    LOGCEPH( "XrdCephOssBufferedFile::Read Recieved EBUSY for fd: " << m_fd << " on try: " << (m_maxBufferRetries-retry_counter) << ". Sleeping .. "
+              << " rc:" << rc  << " off:" << offset << " len:" << blen);
+    std::this_thread::sleep_for(m_maxBufferRetrySleepTime_ms * 1ms);
+    --retry_counter;
+  }
+  if (retry_counter == 0) {
+    // reach maximum attempts for ebusy retry; fail the job
+    LOGCEPH( "XrdCephOssBufferedFile::Read Max attempts for fd: " << m_fd << " on try: " << (m_maxBufferRetries-retry_counter) << ". Terminating with -EIO: "
+              << " rc:" << rc  << " off:" << offset << " len:" << blen );
+    // set a permanent error code:
+    rc = -EIO;    
+  }
   if (rc >=0) {
     m_bytesRead.fetch_add(rc);
   } else {
     LOGCEPH( "XrdCephOssBufferedFile::Read: Read error  fd: " << m_fd << " rc:" << rc  << " off:" << offset << " len:" << blen);
   }
+  // LOGCEPH( "XrdCephOssBufferedFile::Read: Read good  fd: " << m_fd << " rc:" << rc  << " off:" << offset << " len:" << blen);
   return rc;
 }
 
@@ -190,7 +214,23 @@ int XrdCephOssBufferedFile::Fstat(struct stat *buff) {
 }
 
 ssize_t XrdCephOssBufferedFile::Write(const void *buff, off_t offset, size_t blen) {
-  ssize_t rc = m_bufferAlg->write(buff, offset, blen);
+  int retry_counter{m_maxBufferRetries};
+  ssize_t rc {0};
+  while (retry_counter > 0) {
+    rc = m_bufferAlg->write(buff, offset, blen);
+    if (rc != -EBUSY) break; // either worked, or is a real non busy error
+    LOGCEPH( "XrdCephOssBufferedFile::Write Recieved EBUSY for fd: " << m_fd << " on try: " << (m_maxBufferRetries-retry_counter) << ". Sleeping .. "
+              << " rc:" << rc  << " off:" << offset << " len:" << blen);
+    std::this_thread::sleep_for(m_maxBufferRetrySleepTime_ms * 1ms);
+    --retry_counter;
+  }
+  if (retry_counter == 0) {
+    // reach maximum attempts for ebusy retry; fail the job
+    LOGCEPH( "XrdCephOssBufferedFile::Write Max attempts for fd: " << m_fd << " on try: " << (m_maxBufferRetries-retry_counter) << ". Terminating with -EIO: "
+              << " rc:" << rc  << " off:" << offset << " len:" << blen );
+    // set a permanent error code:
+    rc = -EIO;    
+  }
   if (rc >=0) {
     m_bytesWrite.fetch_add(rc);
   }  else {

@@ -69,6 +69,9 @@ protected:
   XrdCephOssFile * m_xrdOssDF = nullptr; // holder of the XrdCephOssFile instance
   std::unique_ptr<XrdCephBuffer::IXrdCephBufferAlg> m_bufferAlg;
 
+  int m_maxBufferRetries {5}; //! How many times to retry a ready from a buffer with EBUSY errors 
+  int m_maxBufferRetrySleepTime_ms; //! number of ms to sleep if a retry is requested 
+  
   int m_flags = 0;
   size_t m_bufsize = 16*1024*1024L; // default 16MiB size
   std::string m_bufferIOmode;
