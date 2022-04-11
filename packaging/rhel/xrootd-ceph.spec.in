@@ -40,8 +40,8 @@
 #-------------------------------------------------------------------------------
 Name:      xrootd-ceph
 Epoch:     1
-Version:   __VERSION__
-Release:   __RELEASE__%{?dist}%{?_with_clang:.clang}
+Version:   5.3.4
+Release:   1%{?dist}%{?_with_clang:.clang}
 Summary:   CEPH plug-in for XRootD
 Group:     System Environment/Daemons
 License:   LGPLv3+
@@ -64,22 +64,32 @@ BuildRequires: cmake
 BuildRequires: cppunit-devel
 %endif
 
-BuildRequires: librados-devel = 2:14.2.15
-BuildRequires: libradosstriper-devel = 2:14.2.15
+BuildRequires: librados-devel = 2:14.2.22
+BuildRequires: libradosstriper-devel = 2:14.2.22
 
 %if %{?_with_clang:1}%{!?_with_clang:0}
 BuildRequires: clang
 %endif
 
-BuildRequires: xrootd-server-devel%{?_isa} = %{epoch}:%{version}-%{release}
-BuildRequires: xrootd-private-devel%{?_isa} = %{epoch}:%{version}-%{release}
-BuildRequires: xrootd-libs%{?_isa} = %{epoch}:%{version}-%{release}
-BuildRequires: xrootd-server-libs%{?_isa} = %{epoch}:%{version}-%{release}
-BuildRequires: xrootd-client-libs%{?_isa} = %{epoch}:%{version}-%{release}
+#BuildRequires: xrootd-server-devel%{?_isa} = %{epoch}:%{version}-%{release}
+#BuildRequires: xrootd-private-devel%{?_isa} = %{epoch}:%{version}-%{release}
+#BuildRequires: xrootd-libs%{?_isa} = %{epoch}:%{version}-%{release}
+#BuildRequires: xrootd-server-libs%{?_isa} = %{epoch}:%{version}-%{release}
+#BuildRequires: xrootd-client-libs%{?_isa} = %{epoch}:%{version}-%{release}
 
-Requires: xrootd-server-libs%{?_isa} = %{epoch}:%{version}-%{release}
-Requires: xrootd-client-libs%{?_isa} = %{epoch}:%{version}-%{release}
-Requires: xrootd-libs%{?_isa} = %{epoch}:%{version}-%{release}
+#Requires: xrootd-server-libs%{?_isa} = %{epoch}:%{version}-%{release}
+#Requires: xrootd-client-libs%{?_isa} = %{epoch}:%{version}-%{release}
+#Requires: xrootd-libs%{?_isa} = %{epoch}:%{version}-%{release}
+
+BuildRequires: xrootd-server-devel%{?_isa} >= 1:5.3.3
+BuildRequires: xrootd-private-devel%{?_isa} >= 1:5.3.3
+BuildRequires: xrootd-libs%{?_isa} >= 1:5.3.1
+BuildRequires: xrootd-server-libs%{?_isa} >= 1:5.3.3
+BuildRequires: xrootd-client-libs%{?_isa} >= 1:5.3.3
+
+Requires: xrootd-server-libs%{?_isa} >= 1:5.3.3
+Requires: xrootd-client-libs%{?_isa} >= 1:5.3.3
+Requires: xrootd-libs%{?_isa} >= 1:5.3.3
 
 %description
 The xrootd-ceph is an OSS layer plug-in for the XRootD server for interfacing
@@ -158,6 +168,8 @@ rm -rf $RPM_BUILD_ROOT
 # Changelog
 #-------------------------------------------------------------------------------
 %changelog
+* Mon Mar 14 2022 Jyothish Thomas <jyothish.thomas@stfc.ac.uk>
+-offline file bug fix
 * Wed Dec 16 2020 George Patargias <george.patargias@stfc.ac.uk>
 - updated version for librados-devel and libradosstriper-devel to 14.2.15 following the recent upgrade on external Echo gateways
 - fixed version in xrootd-ceph shared libraries
