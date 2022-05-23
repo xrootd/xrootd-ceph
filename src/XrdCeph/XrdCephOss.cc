@@ -128,19 +128,21 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
        if (!strncmp(var, "ceph.namelib", 12)) {
          var = Config.GetWord();
          if (var) {
+           std::string libname = var;
            // Warn in case parameters were givne
            char parms[1040];
+           bool hasParms{false};
            if (!Config.GetRest(parms, sizeof(parms)) || parms[0]) {
-             Eroute.Emsg("Config", "namelib parameters will be ignored");
+              hasParms = true;
            }
            // Load name lib
-           XrdOucN2NLoader n2nLoader(&Eroute,configfn,NULL,NULL,NULL);
-           g_namelib = n2nLoader.Load(var, XrdVERSIONINFOVAR(XrdOssGetStorageSystem), NULL);
+           XrdOucN2NLoader  n2nLoader(&Eroute,configfn,(hasParms?parms:""),NULL,NULL);
+           g_namelib = n2nLoader.Load(libname.c_str(), XrdVERSIONINFOVAR(XrdOssGetStorageSystem), NULL);
            if (!g_namelib) {
              Eroute.Emsg("Config", "Unable to load library given in ceph.namelib : %s", var);
            }
          } else {
-           Eroute.Emsg("Config", "Missing value for ceph.namelib in config file", configfn);
+           Eroute.Emsg("Config", "Missing value for ceph.namelib in config file ", configfn);
            return 1;
          }
        }
