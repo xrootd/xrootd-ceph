@@ -40,8 +40,8 @@
 #-------------------------------------------------------------------------------
 Name:      xrootd-ceph
 Epoch:     1
-Version:   5.3.4
-Release:   1%{?dist}%{?_with_clang:.clang}
+Version:   __VERSION__
+Release:   __RELEASE__%{?dist}%{?_with_clang:.clang}
 Summary:   CEPH plug-in for XRootD
 Group:     System Environment/Daemons
 License:   LGPLv3+
