@@ -41,6 +41,7 @@
 #include <sstream>
 #include <sys/xattr.h>
 #include <time.h>
+#include <chrono>
 #include <limits>
 #include <pthread.h>
 #include "XrdSfs/XrdSfsAio.hh"
@@ -251,6 +252,7 @@ static unsigned int stoui(const std::string &s) {
   }
   return (unsigned int)res;
 }
+
 
 /// fills the userId of a ceph file struct from a string and an environment
 /// returns position of first character after the userId
