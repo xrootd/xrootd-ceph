@@ -402,9 +402,11 @@ void translateFileName(std::string &physName, std::string logName){
       logwrapper((char*)"ceph_namelib : failed to translate %s using namelib plugin, using it as is", logName.c_str());
       physName = logName;
     } else {
+      logwrapper((char*)"ceph_namelib : translated %s to %s", logName.c_str(), physCName);
       physName = physCName;
     }
   } else {
+    //logwrapper((char*)"ceph_namelib : No mapping done");
     physName = logName;
   }
 }
@@ -419,14 +421,16 @@ void fillCephFile(const char *path, XrdOucEnv *env, CephFile &file) {
   // If env is null or no entry is found for what is missing, defaults are
   // applied. These defaults are initially set to 'admin', 'default', 1, 4MB and 4MB
   // but can be changed via a call to ceph_posix_set_defaults
-  std::string spath = path;
+  std::string spath {path};
+  // If namelib is specified, apply translation to the whole path (which might include pool, etc)
+  translateFileName(spath,path);
   size_t colonPos = spath.find(':');
   if (std::string::npos == colonPos) {
     // deal with name translation
-    translateFileName(file.name, spath);
+    file.name = spath;
     fillCephFileParams("", env, file);
   } else {
-    translateFileName(file.name, spath.substr(colonPos+1));
+    file.name = spath.substr(colonPos+1);
     fillCephFileParams(spath.substr(0, colonPos), env, file);
   }
 }
