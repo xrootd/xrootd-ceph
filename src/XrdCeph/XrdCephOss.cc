@@ -106,6 +106,8 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
    int NoGo = 0;
    XrdOucEnv myEnv;
    XrdOucStream Config(&Eroute, getenv("XRDINSTANCE"), &myEnv, "=====> ");
+   //disable posc  
+   XrdOucEnv::Export("XRDXROOTD_NOPOSC", "1");
    // If there is no config file, nothing to be done
    if (configfn && *configfn) {
      // Try to open the configuration file.
