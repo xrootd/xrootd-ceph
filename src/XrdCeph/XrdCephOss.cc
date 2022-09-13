@@ -49,11 +49,19 @@ XrdVERSIONINFO(XrdOssGetStorageSystem, XrdCephOss);
 XrdSysError XrdCephEroute(0);
 XrdOucTrace XrdCephTrace(&XrdCephEroute);
 
+/// timestamp output for logging messages
+static std::string ts() {
+    std::time_t t = std::time(nullptr);
+    char mbstr[50];
+    std::strftime(mbstr, sizeof(mbstr), "%y%m%d %H:%M:%S ", std::localtime(&t));
+    return std::string(mbstr);
+}
+
 // log wrapping function to be used by ceph_posix interface
 char g_logstring[1024];
 static void logwrapper(char *format, va_list argp) {
   vsnprintf(g_logstring, 1024, format, argp);
-  XrdCephEroute.Say(g_logstring);
+  XrdCephEroute.Say(ts().c_str(), g_logstring);
 }
 
 /// pointer to library providing Name2Name interface. 0 be default
@@ -100,6 +108,8 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
    int NoGo = 0;
    XrdOucEnv myEnv;
    XrdOucStream Config(&Eroute, getenv("XRDINSTANCE"), &myEnv, "=====> ");
+   //disable posc  
+   XrdOucEnv::Export("XRDXROOTD_NOPOSC", "1");
    // If there is no config file, nothing to be done
    if (configfn && *configfn) {
      // Try to open the configuration file.

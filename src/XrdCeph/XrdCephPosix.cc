@@ -41,6 +41,7 @@
 #include <sstream>
 #include <sys/xattr.h>
 #include <time.h>
+#include <chrono>
 #include <limits>
 #include <pthread.h>
 #include "XrdSfs/XrdSfsAio.hh"
@@ -253,6 +254,7 @@ static unsigned int stoui(const std::string &s) {
   }
   return (unsigned int)res;
 }
+
 
 /// fills the userId of a ceph file struct from a string and an environment
 /// returns position of first character after the userId
@@ -670,6 +672,8 @@ int ceph_posix_open(XrdOucEnv* env, const char *pathname, int flags, mode_t mode
  
   bool fileExists = (rc != -ENOENT); //Make clear what condition we are testing
 
+  logwrapper((char*)"Access Mode: %s flags&O_ACCMODE %d ", pathname, flags);
+
   if ((flags&O_ACCMODE) == O_RDONLY) {  // Access mode is READ
 
     if (fileExists) {
@@ -688,7 +692,11 @@ int ceph_posix_open(XrdOucEnv* env, const char *pathname, int flags, mode_t mode
           return rc;
         }
       } else {
-        return -EEXIST;
+        if (flags & O_EXCL) {
+          return -EACCES; // permission denied
+        } else {
+          return -EEXIST; // otherwise return just file exists
+        }
       }
     }
     // At this point, we know either the target file didn't exist, or the ceph_posix_unlink above removed it
