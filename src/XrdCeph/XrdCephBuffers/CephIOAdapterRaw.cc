@@ -68,7 +68,10 @@ ssize_t CephIOAdapterRaw::read(off64_t offset, size_t count) {
     //auto elapsed = end-start;
     auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end-start);
 
-    if (rc < 0) return rc;
+    if (rc < 0) {
+      BUFLOG("CephIOAdapterRaw::read: Error in read: " << rc );
+      return rc;
+    }
 
     m_stats_read_longest = std::max(m_stats_read_longest,int_ms.count()); 
     m_stats_read_timer.fetch_add(int_ms.count());

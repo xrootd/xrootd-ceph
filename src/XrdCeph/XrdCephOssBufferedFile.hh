@@ -36,7 +36,8 @@
 #include <memory>
 #include <chrono>
 #include <atomic>
-
+#include <map>
+#include <mutex>
 
 //------------------------------------------------------------------------------
 //! Decorator class XrdCephOssBufferedFile designed to wrap XrdCephOssFile
@@ -48,7 +49,8 @@ class XrdCephOssBufferedFile : virtual public XrdCephOssFile { // XrdOssDF
 
 public:
   XrdCephOssBufferedFile(XrdCephOss *cephoss,XrdCephOssFile *cephossDF, size_t buffersize, 
-                          const std::string& bufferIOmode); 
+                          const std::string& bufferIOmode,
+                          size_t maxNumberSimulBuffers); 
   //explicit XrdCephOssBufferedFile(size_t buffersize); 
   virtual ~XrdCephOssBufferedFile();
   virtual int Open(const char *path, int flags, mode_t mode, XrdOucEnv &env);
@@ -65,9 +67,15 @@ public:
   virtual int Ftruncate(unsigned long long);
 
 protected:
+  std::unique_ptr<XrdCephBuffer::IXrdCephBufferAlg> createBuffer(); /// create a new instance of the buffer
+
   XrdCephOss *m_cephoss  = nullptr;
   XrdCephOssFile * m_xrdOssDF = nullptr; // holder of the XrdCephOssFile instance
   std::unique_ptr<XrdCephBuffer::IXrdCephBufferAlg> m_bufferAlg;
+  std::map<size_t, std::unique_ptr<XrdCephBuffer::IXrdCephBufferAlg> > m_bufferReadAlgs;
+  std::mutex m_buf_mutex; //! any data access method on the buffer will use this
+  size_t m_maxCountReadBuffers {10}; //! set the maximum of buffers to open on a single instance (e.g. for simultaneous file reads)
+
 
   int m_maxBufferRetries {5}; //! How many times to retry a ready from a buffer with EBUSY errors 
   int m_maxBufferRetrySleepTime_ms; //! number of ms to sleep if a retry is requested 

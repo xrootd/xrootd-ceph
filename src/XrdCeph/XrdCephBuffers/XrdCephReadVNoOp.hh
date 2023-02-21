@@ -26,7 +26,7 @@ namespace XrdCephBuffer
         XrdCephReadVNoOp() {}
         virtual ~XrdCephReadVNoOp() {}
 
-    virtual std::vector<ExtentHolder> convert(const ExtentHolder &extentsHolderInput) const override;
+    virtual std::vector<ExtentHolder> convert(const ExtentHolder &extentsHolderInput) override;
 
     protected:
     };

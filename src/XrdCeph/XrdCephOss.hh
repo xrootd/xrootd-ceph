@@ -77,7 +77,8 @@ public:
     std::string m_configBufferIOmode = "aio";
     bool m_configReadVEnable=false; //! enable readV decorator
     std::string m_configReadVAlgName="passthrough"; // readV algorithm type
-    
+    size_t m_configMaxSimulBufferCount=10;  //! max number of buffers in a single Oss instance (.e.g simul. reads)
+
 };
 
 #endif /* __CEPH_OSS_HH__ */

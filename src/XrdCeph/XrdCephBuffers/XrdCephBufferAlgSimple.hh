@@ -54,6 +54,10 @@ class XrdCephBufferAlgSimple : public virtual  IXrdCephBufferAlg {
         size_t m_bufferLength = 0;
 
         std::recursive_mutex m_data_mutex; // any data access method on the buffer will use this
+
+        long m_stats_bytes_fromceph{0}; //! number of bytes requested from ceph, to fill the buffers, etc.
+        long m_stats_bytes_bypassed{0}; //! number of bytes specifically bypassed
+        long m_stats_bytes_toclient{0}; //! number of bytes requested by the client
 };  
 
 }

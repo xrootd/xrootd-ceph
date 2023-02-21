@@ -76,6 +76,7 @@ public:
 protected:
   XrdCephOss *m_cephoss  = nullptr;
   XrdCephOssFile * m_xrdOssDF = nullptr; // holder of the XrdCephOssFile instance
+  bool m_extraLogging = true; // use verbose logging
   std::string m_algname = "passthrough";
   std::unique_ptr<XrdCephBuffer::IXrdCephReadVAdapter> m_readVAdapter;
 

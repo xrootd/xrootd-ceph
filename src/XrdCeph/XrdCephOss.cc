@@ -189,7 +189,23 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
            Eroute.Emsg("Config", "Missing value for ceph.buffersize in config file", configfn);
            return 1;
          }
-       } // usebuffer
+       } // buffersize
+        if (!strncmp(var, "ceph.buffermaxpersimul", 22)) { // size in bytes
+         var = Config.GetWord();
+         if (var) {
+           unsigned long value = strtoul(var, 0, 10);
+           if (value > 0 and value <= 1000000000L) {
+             m_configMaxSimulBufferCount = value;
+            Eroute.Emsg("Config", "ceph.buffermaxpersimul", std::to_string(m_configMaxSimulBufferCount).c_str() ); 
+           } else {
+             Eroute.Emsg("Config", "Invalid value for ceph.buffermaxpersimul in config file; enter in bytes (no units)", configfn, var);
+             return 1;
+           }
+         } else {
+           Eroute.Emsg("Config", "Missing value for ceph.buffermaxpersimul in config file", configfn);
+           return 1;
+         }
+       } // buffersize
 
           if (!strncmp(var, "ceph.usereadv", 13)) { // allowable values: 0, 1
          var = Config.GetWord();
@@ -358,7 +374,8 @@ XrdOssDF* XrdCephOss::newFile(const char *tident) {
   }
 
   if (m_configBufferEnable) {
-    xrdCephOssDF = new XrdCephOssBufferedFile(this,xrdCephOssDF, m_configBufferSize, m_configBufferIOmode);
+    xrdCephOssDF = new XrdCephOssBufferedFile(this,xrdCephOssDF, m_configBufferSize, 
+                                              m_configBufferIOmode, m_configMaxSimulBufferCount);
   }
 
 

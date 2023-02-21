@@ -26,13 +26,19 @@ namespace XrdCephBuffer
     // nothing more than readV in, and readV out
     public:
         XrdCephReadVBasic() {}
-        virtual ~XrdCephReadVBasic() {}
+        virtual ~XrdCephReadVBasic();
 
-    virtual std::vector<ExtentHolder> convert(const ExtentHolder &extentsHolderInput) const override;
+    virtual std::vector<ExtentHolder> convert(const ExtentHolder &extentsHolderInput) override;
 
     protected:
-        size_t m_minSize = 2*1024*1024;
-        size_t m_maxSize = 64*1024*1024;
+        ssize_t m_minSize = 2*1024*1024;
+        ssize_t m_maxSize = 16*1024*1024;
+
+    private:
+        size_t m_usedBytes = 0;
+        size_t m_wastedBytes = 0;
+        
+
     };
 
 

@@ -92,21 +92,25 @@ int XrdCephOssReadVFile::Close(long long *retsz) {
 
 ssize_t XrdCephOssReadVFile::ReadV(XrdOucIOVec *readV, int rnum) {
   int fd = m_xrdOssDF->getFileDescriptor();
-  LOGCEPH("XrdCephOssReadVFile::ReadV: fd: " << fd  << " " << rnum << "\n" );
+  LOGCEPH("XrdCephOssReadVFile::ReadV: fd: " << fd  << " " << rnum );
 
-  //std::stringstream msg_extents; 
-  //msg_extents << "EXTENTS=[";
+  std::stringstream msg_extents; 
+  msg_extents << "XrdCephOssReadVFile::Extentslist={\"fd\": " << fd << ", \"EXTENTS\":[";
 
   ExtentHolder extents(rnum);
   for (int i = 0; i < rnum; i++) {
     extents.push_back(Extent(readV[i].offset, readV[i].size));
-    //msg_extents << "(" << readV[i].offset << "," << readV[i].size << ")," ;
+    msg_extents << "[" << readV[i].offset << "," << readV[i].size << "]," ;
   }
-  //msg_extents << "]";
+  msg_extents << "]}";
   //XrdCephEroute.Say(msg_extents.str().c_str()); msg_extents.clear();
-  //LOGCEPH(msg_extents.str());
+  if (m_extraLogging) {
+    // improve this so no wasted calls if logging is disabled
+    LOGCEPH(msg_extents.str());
+    msg_extents.clear();
+  }
 
-  LOGCEPH("Extents: fd: "<< fd << " "  << extents.size() << " " << extents.len() << " " 
+  LOGCEPH("XrdCephOssReadVFile::Extents: fd: "<< fd << " "  << extents.size() << " " << extents.len() << " " 
       << extents.begin() << " " << extents.end() << " " << extents.bytesContained() 
       << " " << extents.bytesMissing());
 
@@ -137,13 +141,13 @@ ssize_t XrdCephOssReadVFile::ReadV(XrdOucIOVec *readV, int rnum) {
     // read the full extent into the buffer
     long timed_read_ns{0};
     {Timer_ns ts(timed_read_ns); 
-    curCount = m_xrdOssDF->Read(buffer.data(), off, len);
+      curCount = m_xrdOssDF->Read(buffer.data(), off, len);
     } // timer scope 
-  ++m_timer_count;
-  auto l = m_timer_longest.load(); 
-  m_timer_longest.store(max(l,timed_read_ns)); // doesn't quite prevent race conditions
-  m_timer_read_ns.fetch_add(timed_read_ns);
-  m_timer_size.fetch_add(curCount);
+    ++m_timer_count;
+    auto l = m_timer_longest.load(); 
+    m_timer_longest.store(max(l,timed_read_ns)); // doesn't quite prevent race conditions
+    m_timer_read_ns.fetch_add(timed_read_ns);
+    m_timer_size.fetch_add(curCount);
 
     // check that the correct amount of data was read. 
     // std:: clog << "buf Read " << curCount << std::endl;

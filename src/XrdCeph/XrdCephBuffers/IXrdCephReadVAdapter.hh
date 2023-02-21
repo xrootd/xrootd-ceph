@@ -35,7 +35,7 @@ namespace XrdCephBuffer
          * @param extentsIn 
          * @return std::vector<ExtentHolder> 
          */
-        virtual std::vector<ExtentHolder> convert(const ExtentHolder &extentsIn) const  =0;
+        virtual std::vector<ExtentHolder> convert(const ExtentHolder &extentsIn)  =0;
 
     protected:
     };

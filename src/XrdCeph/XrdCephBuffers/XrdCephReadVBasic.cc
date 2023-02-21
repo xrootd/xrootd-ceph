@@ -4,53 +4,62 @@
 
 using namespace XrdCephBuffer;
 
-std::vector<ExtentHolder> XrdCephReadVBasic::convert(const ExtentHolder &extentsHolderInput) const
+
+XrdCephReadVBasic::~XrdCephReadVBasic() {
+
+    size_t totalBytes = m_usedBytes + m_wastedBytes;
+    float goodFrac_pct = totalBytes > 0 ? m_usedBytes/(totalBytes*100.) : 0;
+    BUFLOG("XrdCephReadVBasic: Summary: "
+            << " Used: " <<  m_usedBytes << " Wasted: " << m_wastedBytes << " goodFrac: "
+            << goodFrac_pct
+            );
+}
+
+std::vector<ExtentHolder> XrdCephReadVBasic::convert(const ExtentHolder &extentsHolderInput)
 {
     std::vector<ExtentHolder> outputs;
 
     const ExtentContainer &extentsIn = extentsHolderInput.extents();
 
-    ExtentContainer::const_iterator it = extentsIn.begin();
-    while (it != extentsIn.end())
+    ExtentContainer::const_iterator it_l   = extentsIn.begin();
+    ExtentContainer::const_iterator it_r   = extentsIn.begin();
+    ExtentContainer::const_iterator it_end = extentsIn.end();
+
+    // Shortcut the process if range is small
+    if ((it_end->end() - it_l->begin()) <= m_minSize) {
+        ExtentHolder tmp(extentsIn);
+        outputs.push_back(tmp);
+        BUFLOG("XrdCephReadVBasic: Combine all extents: "
+                << tmp.size() << " "  
+                << it_l->begin() << " " << it_end->end() );
+        return outputs;
+    }
+    size_t usedBytes(0);
+    size_t wastedBytes(0);
+
+    // outer loop over extents 
+    while (it_r != it_end)
     {
         ExtentHolder tmp;
         int counter(0);
-        while (it != extentsIn.end()) {
-            tmp.push_back(*it); // just put it into an extent
-            ++it;
+        it_l = it_r;
+        // inner loop over each internal extent range
+        while (it_r != it_end) {
+            if ((it_r->end() - it_l->begin()) > m_maxSize) break; // start a new holder
+            tmp.push_back(*it_r); // just put it into an extent
+            ++it_r;
             ++counter;
-            if (counter > 10 ) break;
         }
-        // while (it != extentsIn.end())
-        // {
-        //     //std::clog << "XrdCephReadVBasic: Inner: " << it->begin() << " " << it->len() << std::endl;
-        //     if (!tmp.size())
-        //     {
-        //         tmp.push_back(*it);
-        //     }
-        //     else if (it->end() - tmp.begin() < (ssize_t)m_minSize)
-        //     {
-        //         tmp.push_back(*it);
-        //     }
-        //     else if (((tmp.bytesContained() + it->len()) / (tmp.len() + it->len())) > 0.6)
-        //     {
-        //         tmp.push_back(*it);
-        //     }
-        //     else if (it->end() - tmp.begin() >= (ssize_t)m_maxSize)
-        //     {
-        //         break; // don't make too big
-        //     }
-        //     else
-        //     {
-        //         break; // didn't fullful logic to include, so start a new extent in next loop
-        //     }
-        //     ++it;
-        // }
-        //BUFLOG("XrdCephReadVBasic: Done Inner: " << tmp.size());
         outputs.push_back(tmp);
+        usedBytes += tmp.bytesContained();
+        wastedBytes += tmp.bytesMissing();
     }
+    m_usedBytes += usedBytes;
+    m_wastedBytes += wastedBytes;
     BUFLOG("XrdCephReadVBasic: In size: " << extentsHolderInput.size() << " " 
-            << extentsHolderInput.extents().size() << " " << outputs.size() );
+            << extentsHolderInput.extents().size() << " " << outputs.size() << " " 
+            << " useful bytes: " << usedBytes << " wasted bytes:" << wastedBytes);
+            
 
     return outputs;
 } // convert

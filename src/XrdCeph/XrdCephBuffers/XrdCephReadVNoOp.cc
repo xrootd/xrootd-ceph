@@ -4,7 +4,7 @@
 
 using namespace XrdCephBuffer;
 
-std::vector<ExtentHolder> XrdCephReadVNoOp::convert(const ExtentHolder &extentsHolderInput) const
+std::vector<ExtentHolder> XrdCephReadVNoOp::convert(const ExtentHolder &extentsHolderInput)
 {
     std::vector<ExtentHolder> outputs;
 
