@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <string>
 #include <fcntl.h>
-
 #include "XrdCeph/XrdCephPosix.hh"
 #include "XrdOuc/XrdOucEnv.hh"
 #include "XrdSys/XrdSysError.hh"
@@ -66,6 +65,69 @@ static void logwrapper(char *format, va_list argp) {
 /// populated in case of ceph.namelib entry in the config file
 /// used in XrdCephPosix
 extern XrdOucName2Name *g_namelib;
+
+//
+// To-do: find the include file defining MAXPATHLEN
+//
+#define MAXPATHLEN 4096
+
+/// converts a logical filename to physical one if needed
+void m_translateFileName(std::string &physName, std::string logName){
+  if (0 != g_namelib) {
+    char physCName[MAXPATHLEN+1];
+    int retc = g_namelib->lfn2pfn(logName.c_str(), physCName, sizeof(physCName));
+    if (retc) {
+      XrdCephEroute.Say(__FUNCTION__, " - failed to translate '", logName.c_str(), "' using namelib plugin, using it as is");
+      physName = logName;
+    } else {
+      XrdCephEroute.Say(__FUNCTION__, " - translated '", logName.c_str(), "' to '", physCName, "'");
+      physName = physCName;
+    }
+  } else {
+    physName = logName;
+  }
+}
+
+/**
+ * Get an integer numeric value from an extended attribute attached to an object
+ *
+ * @brief Retrieve an integer-value extended attribute.
+ * @param path the object ID containing the attribute
+ * @param attrName the name of the attribute to retrieve
+ * @param maxAttrLen the largest number of characters to handle
+ * @return value of the attibute, -EINVAL if not valid integer, or -ENOMEM
+ *
+ * Implementation:
+ * Ian Johnson, ian.johnson@stfc.ac.uk, 2022
+ *
+ */
+
+ssize_t getNumericAttr(const char* const path, const char* attrName, const int maxAttrLen)
+{
+
+  ssize_t retval;
+  char *attrValue = (char*)malloc(maxAttrLen+1);
+  if (NULL == attrValue) {
+    return -ENOMEM;
+  }
+
+  ssize_t attrLen = ceph_posix_getxattr((XrdOucEnv*)NULL, path, attrName, attrValue, maxAttrLen);
+
+  if (attrLen <= 0) {
+    retval = -EINVAL;
+  } else {
+    attrValue[attrLen] = (char)NULL;
+    char *endPointer = (char *)NULL;
+    retval = strtoll(attrValue, &endPointer, 10);
+  }
+
+  if (NULL != attrValue) {
+    free(attrValue);
+  }
+  
+  return retval;
+
+}
 
 extern "C"
 {
@@ -156,6 +218,17 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
            return 1;
          }
        }
+
+       if (!strcmp(var, "ceph.reportingpools")) {
+         var = Config.GetWord();
+         if (var) {
+           m_configPoolnames = var;
+         } else {
+           Eroute.Emsg("Config", "Missing value for ceph.reportingpools in config file", configfn);
+           return 1; 
+         }
+       }       
+ 
      }
 
      // Now check if any errors occured during file i/o
@@ -197,27 +270,80 @@ int XrdCephOss::Rename(const char *from,
   return -ENOTSUP;
 }
 
+/**
+ *
+ * Populate a struct stat* with information on an object ID.
+ * Determine whether the request relates to a pool name for disk space reporting via
+ * StatLS. If not, handle an object path or the notional root element "/"
+ *
+ * @brief Return status information for an object ID.
+ * @param (in) path the object ID
+ * @param (out) buff receive the status information
+ * @param (in) opts not used
+ * @param (in) env not used
+ * 
+ * Implementation of enhancements:
+ * Jyothish Thomas	STFC RAL, jyothish.thomas@stfc.ac.uk, 2022
+ * Ian Johnson		STFC RAL, ian.johnson@stfc.ac.uk, 2022, 2023
+ * 
+ */
+
+
 int XrdCephOss::Stat(const char* path,
                   struct stat* buff,
                   int opts,
                   XrdOucEnv* env) {
-  try {
-    if (!strcmp(path, "/")) {
-      // special case of a stat made by the locate interface
-      // we intend to then list all files
-      memset(buff, 0, sizeof(*buff));
-      buff->st_mode = S_IFDIR | 0700;
-      return 0;
+  
+  XrdCephEroute.Say(__FUNCTION__, " path = ", path);
+
+  std::string spath {path};
+  m_translateFileName(spath,path);
+
+  if (spath.back() == '/') { // Request to stat the root 
+#ifdef STAT_TRACE
+    XrdCephEroute.Say(__FUNCTION__, " - fake a return for stat'ing root element '/'");
+#endif
+    // special case of a stat made by the locate interface
+    // we intend to then list all files 
+    
+    memset(buff, 0, sizeof(*buff));
+    buff->st_mode = S_IFDIR | 0700;
+    return XrdOssOK;
+   
+  } 
+
+  if (spath.find_first_of(":") == spath.length()-1) { // Request to stat just the pool name
+
+#ifdef STAT_TRACE
+    XrdCephEroute.Say(__FUNCTION__, "Found request to stat pool name");
+#endif
+
+    spath.pop_back(); // remove colon from pool name
+    if (m_configPoolnames.find(spath) != std::string::npos)  { // Support 'locate' for spaceinfo
+#ifdef STAT_TRACE  
+      XrdCephEroute.Say(__FUNCTION__, " - preparing spaceinfo report for '", path, "'");
+#endif
+      return XrdOssOK; // Only requires a status code, do not need to fill contents in struct stat
     } else {
-      return ceph_posix_stat(env, path, buff);
+      XrdCephEroute.Say(__FUNCTION__, " - cannot find pool '", path, "' in ceph.reportingpools");
+      return -EINVAL;
     }
-  } catch (std::exception &e) {
-    XrdCephEroute.Say("stat : invalid syntax in file parameters");
-    return -EINVAL;
-  }
+
+  } else {
+#ifdef STAT_TRACE
+    XrdCephEroute.Say(__FUNCTION__, " passing to ceph_posix_stat... ");
+#endif
+    return ceph_posix_stat(env, path, buff);
+  }  
 }
 
+
+
 int XrdCephOss::StatFS(const char *path, char *buff, int &blen, XrdOucEnv *eP) {
+
+#ifdef STAT_TRACE  
+  XrdCephEroute.Say(__FUNCTION__, " path = ", path);
+#endif
   XrdOssVSInfo sP;
   int rc = StatVS(&sP, 0, 0);
   if (rc) {
@@ -230,6 +356,10 @@ int XrdCephOss::StatFS(const char *path, char *buff, int &blen, XrdOucEnv *eP) {
 }
 
 int XrdCephOss::StatVS(XrdOssVSInfo *sP, const char *sname, int updt) {
+
+#ifdef STAT_TRACE
+  XrdCephEroute.Say(__FUNCTION__, " path = ", sname);
+#endif
   int rc = ceph_posix_statfs(&(sP->Total), &(sP->Free));
   if (rc) {
     return rc;
@@ -241,6 +371,79 @@ int XrdCephOss::StatVS(XrdOssVSInfo *sP, const char *sname, int updt) {
   return XrdOssOK;
 }
 
+int formatStatLSResponse(char *buff, int &blen, const char* cgroup, long long totalSpace, 
+  long long usedSpace, long long freeSpace, long long quota, long long maxFreeChunk)
+{
+  return snprintf(buff, blen, "oss.cgroup=%s&oss.space=%lld&oss.free=%lld&oss.maxf=%lld&oss.used=%lld&oss.quota=%lld",
+                                     cgroup,       totalSpace,    freeSpace,    maxFreeChunk, usedSpace,    quota);
+}
+
+/**
+ *
+ * Handle a request for the amount of space used in a Ceph pool
+ * 
+ * @brief Report on disk space use in this pool.
+ * @param (in) env not used
+ * @param (in) path name of the pool
+ * @param (out) buff location for string containing OSS key-value pairs for disk space used, free, etc
+ * @param (out) blen set to length of buff
+ *
+ * Implementation:
+ * Jyothish Thomas	STFC RAL, jyothish.thomas@stfc.ac.uk, 2022
+ * Ian Johnson		STFC RAL, ian.johnson@stfc.ac.uk, 2022, 2023
+ *
+ */
+
+
+int XrdCephOss::StatLS(XrdOucEnv &env, const char *path, char *buff, int &blen)
+{
+  XrdCephEroute.Say(__FUNCTION__, " path = ", path);  
+  std::string spath {path};
+  m_translateFileName(spath,path);
+
+  if (spath.back() == ':') {
+    spath.pop_back();
+  }
+  if (m_configPoolnames.find(spath) == std::string::npos) {
+    XrdCephEroute.Say("Can't report on ", path);
+    return -EINVAL;
+  }
+
+  long long usedSpace, totalSpace, freeSpace;
+
+  if (ceph_posix_stat_pool(spath.c_str(), &usedSpace) != 0) {
+      XrdCephEroute.Say("Failed to get used space in pool ", spath.c_str());
+      return -EINVAL;
+  }
+
+  // Construct the object path
+  std::string spaceInfoPath =  spath + ":" +  (const char *)"__spaceinfo__";
+  totalSpace = getNumericAttr(spaceInfoPath.c_str(), "total_space", 24);
+  if (totalSpace < 0) {
+    XrdCephEroute.Say("Could not get 'total_space' attribute from ", spaceInfoPath.c_str());
+    return -EINVAL;
+  }
+
+//
+// Figure for 'usedSpace' already accounts for Erasure Coding overhead
+//
+
+
+  freeSpace = totalSpace - usedSpace;
+  blen = formatStatLSResponse(buff, blen, 
+    path,       /* "oss.cgroup" */ 
+    totalSpace, /* "oss.space"  */
+    usedSpace,  /* "oss.used"   */
+    freeSpace,  /* "oss.free"   */
+    totalSpace, /* "oss.quota"  */
+    freeSpace   /* "oss.maxf"   */);
+#ifdef STAT_TRACE
+  XrdCephEroute.Say(__FUNCTION__, "space info = \n", buff);
+#endif
+  return XrdOssOK;
+
+}
+ 
 int XrdCephOss::Truncate (const char* path,
                           unsigned long long size,
                           XrdOucEnv* env) {
