@@ -21,7 +21,7 @@ std::atomic<long> XrdCephBufferDataSimple::m_total_memory_nbuffers {0}; //!< tot
 
 
 XrdCephBufferDataSimple::XrdCephBufferDataSimple(size_t bufCapacity):
- m_buffer(bufCapacity,0), m_externalOffset(0),m_bufLength(0) {
+ m_bufferSize(bufCapacity), m_buffer(bufCapacity,0), m_externalOffset(0),m_bufLength(0) {
     m_valid = true;
 
     // update global statistics
@@ -32,6 +32,7 @@ XrdCephBufferDataSimple::XrdCephBufferDataSimple(size_t bufCapacity):
 
 XrdCephBufferDataSimple::~XrdCephBufferDataSimple() {
     m_valid = false;
+    // obtain the actual capacity here, as this is the real number of bytes to be released
     auto cap = m_buffer.capacity();
     m_buffer.clear();
     m_buffer.reserve(0); // just to be paranoid and realse memory immediately
@@ -45,7 +46,9 @@ XrdCephBufferDataSimple::~XrdCephBufferDataSimple() {
 
 
 size_t XrdCephBufferDataSimple::capacity() const {
-    return m_buffer.capacity();
+    // return defined buffered size, which might in principle be different
+    // to the actual size of the buffer allocated in memory
+    return m_bufferSize;
 }
 
 size_t XrdCephBufferDataSimple::length() const   {

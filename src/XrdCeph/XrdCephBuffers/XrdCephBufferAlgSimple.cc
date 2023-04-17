@@ -285,7 +285,6 @@ ssize_t XrdCephBufferAlgSimple::write (const void *buf, off_t offset, size_t ble
 
     size_t bytesRemaining = blen; //!< track how many bytes left to write
     size_t bytesWritten = 0;
-    off_t  bufferOffset = m_bufferLength; // position to append data in the buffer, i.e. the end of the buffer
 
     /** Typically would expect only one loop, i.e. the write request is smaller than the buffer.
      * If bigger, or the request stradles the end of the buffer, will need another loop
@@ -306,27 +305,26 @@ ssize_t XrdCephBufferAlgSimple::write (const void *buf, off_t offset, size_t ble
             // cache is currently empty, so set the 'reference' to the external offset now
             m_bufferStartingOffset = offset + bytesWritten;
         }
-        //add data to the cache from buf, from buf[offsetDelta] to the cache at position bufferOffset
+        //add data to the cache from buf, from buf[offsetDelta] to the cache at position m_bufferLength
         // make sure to write only as many bytes as left in the cache.
         size_t nBytesToWrite = std::min(bytesRemaining, m_bufferdata->capacity()-m_bufferLength);
         const void* bufAtOffset = (void*)((char*)buf +  bytesWritten); // nasty cast as void* doesn't do arithmetic
         if (nBytesToWrite == 0) {
             BUFLOG( "Wanting to write 0 bytes; why is that?");
         }
-        rc = m_bufferdata->writeBuffer(bufAtOffset, bufferOffset, nBytesToWrite, 0); 
+        rc = m_bufferdata->writeBuffer(bufAtOffset, m_bufferLength, nBytesToWrite, 0); 
         if (rc < 0) {
-            BUFLOG( "WriteBuffer step failed: " << rc << "  " << bufferOffset << "  " << blen << "  " << offset );
+            BUFLOG( "WriteBuffer step failed: " << rc << "  " << m_bufferLength << "  " << blen << "  " << offset );
             return rc; // pass the error condidition upwards
         }
         if (rc != (ssize_t)nBytesToWrite) {
             BUFLOG( "WriteBuffer returned unexpected number of bytes: " << rc << "  Expected: " << nBytesToWrite << " " 
-             << bufferOffset << "  " << blen << "  " << offset );
+             << m_bufferLength << "  " << blen << "  " << offset );
             return -EBADE; // is bad exchange error best errno here?
         }
 
         // lots of repetition here; #TODO try to reduce 
         m_bufferLength += rc;
-        bufferOffset   += rc;
         bytesWritten   += rc;
         bytesRemaining -= rc;
 

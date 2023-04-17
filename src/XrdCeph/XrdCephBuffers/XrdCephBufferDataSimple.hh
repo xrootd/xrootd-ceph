@@ -45,6 +45,7 @@ class XrdCephBufferDataSimple :  public virtual IXrdCephBufferData
 
 
     protected:
+        size_t m_bufferSize; //! the buffer size
         bool m_valid = false;
         std::vector<char> m_buffer; // actual physical buffer
         off_t m_externalOffset = 0; //! what does the first byte of the buffer map to for external offsets
