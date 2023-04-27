@@ -72,6 +72,11 @@ public:
   virtual XrdOssDF *newDir(const char *tident);
   virtual XrdOssDF *newFile(const char *tident);
 
+  //If set to 1, striper-based algorithm is used for pread
+  int m_useDefaultPreadAlg = 0;
+  //If set to 1, striper-based algorithm is used for readv
+  int m_useDefaultReadvAlg = 0;
+
   private:
     std::string m_configPoolnames;
 };

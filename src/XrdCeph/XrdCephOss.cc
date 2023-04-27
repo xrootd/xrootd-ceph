@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string>
 #include <fcntl.h>
+#include <limits.h>
 #include "XrdCeph/XrdCephPosix.hh"
 #include "XrdOuc/XrdOucEnv.hh"
 #include "XrdSys/XrdSysError.hh"
@@ -164,6 +165,8 @@ XrdCephOss::~XrdCephOss() {
 
 // declared and used in XrdCephPosix.cc
 extern unsigned int g_maxCephPoolIdx;
+extern unsigned int g_cephAioWaitThresh;
+
 int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
    int NoGo = 0;
    XrdOucEnv myEnv;
@@ -228,7 +231,46 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
            return 1; 
          }
        }       
- 
+
+       int pread_flag_set = !strncmp(var, "ceph.usedefaultpreadalg", 24);
+       int readv_flag_set = !strncmp(var, "ceph.usedefaultreadvalg", 24);
+       if (pread_flag_set or readv_flag_set) {
+         var = Config.GetWord();
+         if (var) {
+           char* endptr;
+           long value = strtol(var, &endptr, 10);
+           if ((value == 0 || value == 1) && (var != endptr)) {
+             if (pread_flag_set) {
+               m_useDefaultPreadAlg = value;
+             } else if(readv_flag_set) {
+               m_useDefaultReadvAlg = value;
+             } else {
+               Eroute.Emsg("Config", "Bug encountered during parsing", var);
+             }
+           } else {
+             Eroute.Emsg("Config", "Invalid value for ceph.usedefault* in config file -- must be 0 or 1, got", var);
+             return 1;
+           }
+         } else {
+           Eroute.Emsg("Config", "Missing value for ceph.usedefault* in config file");
+           return 1; 
+         }
+       }
+
+       if (!strncmp(var, "ceph.aiowaitthresh", 19)) {
+         var = Config.GetWord();
+         if (var) {
+           unsigned long value = strtoul(var, 0, 10);
+           if ((value > 0) && (value < INT_MAX)){
+             g_cephAioWaitThresh = value;
+           } else {
+             Eroute.Emsg("Config", "Invalid value for ceph.aiowaitthresh:", var);
+           }
+         } else {
+           Eroute.Emsg("Config", "Missing value for ceph.aiowaitthresh in config file");
+           return 1; 
+         }
+       }
      }
 
      // Now check if any errors occured during file i/o
