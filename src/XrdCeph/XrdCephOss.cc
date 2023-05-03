@@ -26,6 +26,7 @@
 #include <string>
 #include <fcntl.h>
 #include <limits.h>
+#include <chrono>
 #include "XrdCeph/XrdCephPosix.hh"
 #include "XrdOuc/XrdOucEnv.hh"
 #include "XrdSys/XrdSysError.hh"
