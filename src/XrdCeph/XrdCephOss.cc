@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string>
 #include <fcntl.h>
+#include <limits.h>
 #include "XrdCeph/XrdCephPosix.hh"
 #include "XrdOuc/XrdOucEnv.hh"
 #include "XrdSys/XrdSysError.hh"
@@ -68,6 +69,7 @@ static void logwrapper(char *format, va_list argp) {
 /// populated in case of ceph.namelib entry in the config file
 /// used in XrdCephPosix
 extern XrdOucName2Name *g_namelib;
+
 
 /// converts a logical filename to physical one if needed
 void m_translateFileName(std::string &physName, std::string logName){
@@ -162,6 +164,8 @@ XrdCephOss::~XrdCephOss() {
 
 // declared and used in XrdCephPosix.cc
 extern unsigned int g_maxCephPoolIdx;
+extern unsigned int g_cephAioWaitThresh;
+
 int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
    int NoGo = 0;
    XrdOucEnv myEnv;
@@ -216,6 +220,47 @@ int XrdCephOss::Configure(const char *configfn, XrdSysError &Eroute) {
            return 1;
          }
        }
+
+       int pread_flag_set = !strncmp(var, "ceph.usedefaultpreadalg", 24);
+       int readv_flag_set = !strncmp(var, "ceph.usedefaultreadvalg", 24);
+       if (pread_flag_set or readv_flag_set) {
+         var = Config.GetWord();
+         if (var) {
+           char* endptr;
+           long value = strtol(var, &endptr, 10);
+           if ((value == 0 || value == 1) && (var != endptr)) {
+             if (pread_flag_set) {
+               m_useDefaultPreadAlg = value;
+             } else if(readv_flag_set) {
+               m_useDefaultReadvAlg = value;
+             } else {
+               Eroute.Emsg("Config", "Bug encountered during parsing", var);
+             }
+           } else {
+             Eroute.Emsg("Config", "Invalid value for ceph.usedefault* in config file -- must be 0 or 1, got", var);
+             return 1;
+           }
+         } else {
+           Eroute.Emsg("Config", "Missing value for ceph.usedefault* in config file");
+           return 1; 
+         }
+       }
+
+       if (!strncmp(var, "ceph.aiowaitthresh", 19)) {
+         var = Config.GetWord();
+         if (var) {
+           unsigned long value = strtoul(var, 0, 10);
+           if ((value > 0) && (value < INT_MAX)){
+             g_cephAioWaitThresh = value;
+           } else {
+             Eroute.Emsg("Config", "Invalid value for ceph.aiowaitthresh:", var);
+           }
+         } else {
+           Eroute.Emsg("Config", "Missing value for ceph.aiowaitthresh in config file");
+           return 1; 
+         }
+       }
+     
         if (!strncmp(var, "ceph.usebuffer", 14)) { // allowable values: 0, 1
          var = Config.GetWord();
          if (var) {
@@ -362,6 +407,7 @@ int XrdCephOss::Rename(const char *from,
 
 /**
  *
+
  * @brief Extract a pool name (string before the first colon ':') from an object ID.
  * @param (in) possPool the object ID
  * @return pool name or unchanged object ID
@@ -415,8 +461,10 @@ int XrdCephOss::Stat(const char* path,
   m_translateFileName(spath,path);
 
   if (spath.back() == '/') { // Request to stat the root 
-    
+
+#ifdef STAT_TRACE
     XrdCephEroute.Say(__FUNCTION__, " - fake a return for stat'ing root element '/'");
+#endif
 
     // special case of a stat made by the locate interface
     // we intend to then list all files 
@@ -428,6 +476,24 @@ int XrdCephOss::Stat(const char* path,
 
     return XrdOssOK;
    
+  } 
+  if (spath.find_first_of(":") == spath.length()-1) { // Request to stat just the pool name
+
+#ifdef STAT_TRACE
+    XrdCephEroute.Say(__FUNCTION__, "Found request to stat pool name");
+#endif
+
+    spath.pop_back(); // remove colon from pool name
+    if (m_configPoolnames.find(spath) != std::string::npos)  { // Support 'locate' for spaceinfo
+#ifdef STAT_TRACE  
+      XrdCephEroute.Say(__FUNCTION__, " - preparing spaceinfo report for '", path, "'");
+#endif
+      return XrdOssOK; // Only requires a status code, do not need to fill contents in struct stat
+    } else {
+      XrdCephEroute.Say(__FUNCTION__, " - cannot find pool '", path, "' in ceph.reportingpools");
+      return -EINVAL;
+    }
+
   } else if (ceph_posix_stat(env, path, buff) == 0) { // Found object ID 
 
 #ifdef STAT_TRACE
@@ -445,7 +511,6 @@ int XrdCephOss::Stat(const char* path,
   }
 
 }
-
 
 
 
@@ -505,6 +570,7 @@ int formatStatLSResponse(char *buff, int &blen, const char* cgroup, long long to
  */
 
 
+
 int XrdCephOss::StatLS(XrdOucEnv &env, const char *charPath, char *buff, int &blen)
 {
   XrdCephEroute.Say(__FUNCTION__, " incoming path = ", charPath); 
@@ -548,7 +614,7 @@ int XrdCephOss::StatLS(XrdOucEnv &env, const char *charPath, char *buff, int &bl
 
   freeSpace = totalSpace - usedSpace;
   blen = formatStatLSResponse(buff, blen, 
-    /* charPath */ spath.c_str(),   /* "oss.cgroup" */ 
+    spath.c_str(),       /* "oss.cgroup" */ 
     totalSpace, /* "oss.space"  */
     usedSpace,  /* "oss.used"   */
     freeSpace,  /* "oss.free"   */
