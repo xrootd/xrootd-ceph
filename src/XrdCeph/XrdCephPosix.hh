@@ -69,6 +69,8 @@ ssize_t ceph_striper_readv(int fd, XrdOucIOVec *readV, int n);
 ssize_t ceph_posix_read(int fd, void *buf, size_t count);
 ssize_t ceph_posix_nonstriper_pread(int fd, void *buf, size_t count, off64_t offset);
 ssize_t ceph_posix_pread(int fd, void *buf, size_t count, off64_t offset);
+ssize_t ceph_posix_maybestriper_pread(int fd, void *buf, size_t count, off64_t offset, bool allowStriper=true);
+
 ssize_t ceph_aio_read(int fd, XrdSfsAio *aiop, AioCB *cb);
 int ceph_posix_fstat(int fd, struct stat *buf);
 int ceph_posix_stat(XrdOucEnv* env, const char *pathname, struct stat *buf);

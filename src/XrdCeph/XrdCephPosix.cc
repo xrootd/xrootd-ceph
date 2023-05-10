@@ -1089,6 +1089,26 @@ ssize_t ceph_posix_pread(int fd, void *buf, size_t count, off64_t offset) {
   }
 }
 
+ssize_t ceph_posix_maybestriper_pread(int fd, void *buf, size_t count, off64_t offset, bool allowStriper) {
+  ssize_t rc {0};
+  if (!allowStriper) {
+    rc = ceph_posix_pread(fd,buf,count,offset);
+    return rc; 
+  }
+  rc = ceph_posix_nonstriper_pread(fd, buf, count,offset);
+  if (-ENOENT == rc || -ENOTSUP == rc) {
+    //This might be a sparse file or nbstripes > 1, so let's try striper read
+    rc = ceph_posix_pread(fd, buf, count,offset);
+    if (rc >= 0) {
+      char err_str[100]; //99 symbols should be enough for the short message
+      snprintf(err_str, 100, "WARNING! The file (fd %d) seem to be sparse, this is not expected", fd);
+      logwrapper(err_str);
+    }
+  }
+  return rc; 
+}
+
+
 static void ceph_aio_read_complete(rados_completion_t c, void *arg) {
   AioArgs *awa = reinterpret_cast<AioArgs*>(arg);
   size_t rc = rados_aio_get_return_value(c);
