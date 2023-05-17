@@ -26,6 +26,7 @@
 #include <string>
 #include <fcntl.h>
 #include <limits.h>
+#include <chrono>
 #include "XrdCeph/XrdCephPosix.hh"
 #include "XrdOuc/XrdOucEnv.hh"
 #include "XrdSys/XrdSysError.hh"
@@ -462,14 +463,17 @@ int XrdCephOss::Stat(const char* path,
 
   if (spath.back() == '/') { // Request to stat the root 
 
+
 #ifdef STAT_TRACE
     XrdCephEroute.Say(__FUNCTION__, " - fake a return for stat'ing root element '/'");
 #endif
+
 
     // special case of a stat made by the locate interface
     // we intend to then list all files 
     
     memset(buff, 0, sizeof(*buff));
+
     buff->st_mode = S_IFDIR|S_IRWXU;
     buff->st_dev = 1;
     buff->st_ino = 1;
@@ -477,6 +481,7 @@ int XrdCephOss::Stat(const char* path,
     return XrdOssOK;
    
   } 
+
   if (spath.find_first_of(":") == spath.length()-1) { // Request to stat just the pool name
 
 #ifdef STAT_TRACE
@@ -494,6 +499,7 @@ int XrdCephOss::Stat(const char* path,
       return -EINVAL;
     }
 
+
   } else if (ceph_posix_stat(env, path, buff) == 0) { // Found object ID 
 
 #ifdef STAT_TRACE
@@ -509,6 +515,7 @@ int XrdCephOss::Stat(const char* path,
     return -ENOENT;
 
   }
+
 
 }
 
@@ -584,6 +591,7 @@ int XrdCephOss::StatLS(XrdOucEnv &env, const char *charPath, char *buff, int &bl
 //
 // Following test is now redundant as we take the substring up to colonPos
 //
+
   if (spath.back() == ':') {
     spath.pop_back();
   }
