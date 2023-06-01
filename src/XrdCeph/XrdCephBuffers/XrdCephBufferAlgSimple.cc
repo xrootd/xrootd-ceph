@@ -107,8 +107,8 @@ ssize_t XrdCephBufferAlgSimple::read(volatile void *buf,   off_t offset, size_t 
      * Invalidate the cache in anycase
      */
     if (blen >= m_bufferdata->capacity()) {
-        BUFLOG("XrdCephBufferAlgSimple::read: Readthrough cache: fd: " << m_fd 
-                 << " " << offset << " " << blen);
+        //BUFLOG("XrdCephBufferAlgSimple::read: Readthrough cache: fd: " << m_fd 
+        //         << " " << offset << " " << blen);
         // larger than cache, so read through, and invalidate the cache anyway
         m_bufferdata->invalidate();
         m_bufferLength =0; // ensure cached data is set to zero length
