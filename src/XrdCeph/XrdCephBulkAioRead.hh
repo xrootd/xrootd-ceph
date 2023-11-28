@@ -32,6 +32,8 @@ class bulkAioRead {
   int submit_and_wait_for_complete();
   ssize_t get_results();
   int read(void *out_buf, size_t size, off64_t offset);
+  unsigned long long b_stripeUnit;
+  unsigned long long b_objectSize;
 
   private:
   //Completion pointer
