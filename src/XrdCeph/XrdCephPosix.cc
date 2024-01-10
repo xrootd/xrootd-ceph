@@ -684,6 +684,31 @@ int ceph_posix_open(XrdOucEnv* env, const char *pathname, int flags, mode_t mode
   if ((flags&O_ACCMODE) == O_RDONLY) {  // Access mode is READ
 
     if (fileExists) {
+      librados::bufferlist d_stripeUnit;
+      librados::bufferlist d_objectSize;
+      std::string obj_name;
+      librados::IoCtx *context = getIoCtx(fr);
+      // read first stripe of the object for xattr stripe unit and object size
+      // this will fail if the object was not written in stripes e.g. s3
+      // TBD: fallback to direct object (no stripe id appends to filename,
+      // replace striper metadata with corresponding metadata)
+      //
+      try {
+        obj_name =  fr.name + std::string(".0000000000000000");
+      } catch (std::bad_alloc&) {
+        logwrapper((char*)"Can not create object string for file %s)", fr.name.c_str());
+      }
+      int ret = 0;
+      ret = context->getxattr(obj_name, "striper.layout.stripe_unit", d_stripeUnit);
+      ret = std::min(ret,context->getxattr(obj_name, "striper.layout.object_size", d_objectSize));
+      //log_func((char*)"size xattr for %s , %llu ,%llu", file_ref->name.c_str(), file_ref->objectSize, file_ref->stripeUnit );
+     if (ret<0){
+       logwrapper((char*)"Could not find size or stripe_unit xattr for %s", fr.name.c_str());
+      }
+     else{
+       fr.stripeUnit = std::stoull(d_stripeUnit.c_str());
+       fr.objectSize = std::stoull(d_objectSize.c_str());
+     } 
       int fd = insertFileRef(fr);
       logwrapper((char*)"File descriptor %d associated to file %s opened in read mode", fd, pathname);
       return fd;
