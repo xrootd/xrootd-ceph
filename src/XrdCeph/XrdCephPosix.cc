@@ -688,6 +688,7 @@ int ceph_posix_open(XrdOucEnv* env, const char *pathname, int flags, mode_t mode
       librados::bufferlist d_objectSize;
       std::string obj_name;
       librados::IoCtx *context = getIoCtx(fr);
+  
       // read first stripe of the object for xattr stripe unit and object size
       // this will fail if the object was not written in stripes e.g. s3
       // TBD: fallback to direct object (no stripe id appends to filename,
@@ -706,8 +707,15 @@ int ceph_posix_open(XrdOucEnv* env, const char *pathname, int flags, mode_t mode
        logwrapper((char*)"Could not find size or stripe_unit xattr for %s", fr.name.c_str());
       }
      else{
-       fr.stripeUnit = std::stoull(d_stripeUnit.c_str());
-       fr.objectSize = std::stoull(d_objectSize.c_str());
+       char *cleanStripeUnit = new char[1024];
+       char *cleanObjectSize = new char[1024];
+       unsigned int stripeUnitLength = std::min((unsigned int)1023, d_stripeUnit.length());
+       unsigned int objectSizeLength = std::min((unsigned int)1023, d_objectSize.length());
+       strncpy( cleanStripeUnit, d_stripeUnit.c_str(), stripeUnitLength );
+       strncpy( cleanObjectSize, d_objectSize.c_str(), objectSizeLength );
+
+       fr.stripeUnit = std::stoull(cleanStripeUnit);
+       fr.objectSize = std::stoull(cleanObjectSize);
      } 
       int fd = insertFileRef(fr);
       logwrapper((char*)"File descriptor %d associated to file %s opened in read mode", fd, pathname);
